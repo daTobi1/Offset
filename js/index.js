@@ -159,13 +159,13 @@ function saveMacro() {
     }
     
     // Get existing macros or initialize empty array
-    let macros = JSON.parse(localStorage.getItem('axiscope_macros') || '[]');
+    let macros = JSON.parse(localStorage.getItem('offset_macros') || '[]');
     
     // Add new macro
     macros.push({ name, command });
     
     // Save to localStorage
-    localStorage.setItem('axiscope_macros', JSON.stringify(macros));
+    localStorage.setItem('offset_macros', JSON.stringify(macros));
     
     // Clear inputs
     $('#macro-name').val('');
@@ -176,7 +176,7 @@ function saveMacro() {
 }
 
 function loadMacros() {
-    const macros = JSON.parse(localStorage.getItem('axiscope_macros') || '[]');
+    const macros = JSON.parse(localStorage.getItem('offset_macros') || '[]');
     const $macroList = $('#macro-list');
     
     // Clear current list
@@ -207,7 +207,7 @@ function loadMacros() {
 }
 
 function executeMacro(index) {
-    const macros = JSON.parse(localStorage.getItem('axiscope_macros') || '[]');
+    const macros = JSON.parse(localStorage.getItem('offset_macros') || '[]');
     const macro = macros[index];
     
     if (!macro) return;
@@ -224,10 +224,10 @@ function executeMacro(index) {
 }
 
 function deleteMacro(index) {
-    let macros = JSON.parse(localStorage.getItem('axiscope_macros') || '[]');
+    let macros = JSON.parse(localStorage.getItem('offset_macros') || '[]');
     
     macros.splice(index, 1);
-    localStorage.setItem('axiscope_macros', JSON.stringify(macros));
+    localStorage.setItem('offset_macros', JSON.stringify(macros));
     
     loadMacros();
 }
