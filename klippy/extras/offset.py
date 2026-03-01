@@ -6,7 +6,7 @@ from . import tools_calibrate
 from . import toolchanger
 
 
-class Axiscope:
+class Offset:
     def __init__(self, config):
         self.printer       = config.get_printer()
         self.gcode         = self.printer.lookup_object('gcode')
@@ -30,7 +30,7 @@ class Axiscope:
         # Z trigger calc method (median|average|trimmed)
         self.z_calc_method = (config.get('z_calc_method', 'median') or 'median').strip().lower()
         if self.z_calc_method not in ('median', 'average', 'avg', 'mean', 'trimmed', 'trim', 'trimmed_mean'):
-            raise config.error("axiscope: z_calc_method must be one of: median, average, trimmed")
+            raise config.error("offset: z_calc_method must be one of: median, average, trimmed")
 
         # how many values to trim on each side for trimmed mean
         self.z_trim_count = config.getint('z_trim_count', 1, minval=0)
@@ -66,7 +66,7 @@ class Axiscope:
             query_endstops = self.printer.load_object(config, 'query_endstops')
             query_endstops.register_endstop(
                 self.probe_multi_axis.mcu_probe[-1].mcu_endstop,
-                "Axiscope"
+                "Offset"
             )
         else:
             self.probe_multi_axis = None
@@ -78,19 +78,19 @@ class Axiscope:
         self.gcode.register_command('PROBE_ZSWITCH', self.cmd_PROBE_ZSWITCH)
         self.gcode.register_command('CALIBRATE_ALL_Z_OFFSETS', self.cmd_CALIBRATE_ALL_Z_OFFSETS)
 
-        self.gcode.register_command('AXISCOPE_START_GCODE', self.cmd_AXISCOPE_START_GCODE)
-        self.gcode.register_command('AXISCOPE_BEFORE_PICKUP_GCODE', self.cmd_AXISCOPE_BEFORE_PICKUP_GCODE)
-        self.gcode.register_command('AXISCOPE_AFTER_PICKUP_GCODE', self.cmd_AXISCOPE_AFTER_PICKUP_GCODE)
-        self.gcode.register_command('AXISCOPE_FINISH_GCODE', self.cmd_AXISCOPE_FINISH_GCODE)
+        self.gcode.register_command('OFFSET_START_GCODE', self.cmd_OFFSET_START_GCODE)
+        self.gcode.register_command('OFFSET_BEFORE_PICKUP_GCODE', self.cmd_OFFSET_BEFORE_PICKUP_GCODE)
+        self.gcode.register_command('OFFSET_AFTER_PICKUP_GCODE', self.cmd_OFFSET_AFTER_PICKUP_GCODE)
+        self.gcode.register_command('OFFSET_FINISH_GCODE', self.cmd_OFFSET_FINISH_GCODE)
 
     def handle_connect(self):
         if self.config_file_path:
             self.config_file_path = os.path.expanduser(self.config_file_path)
             if os.path.exists(self.config_file_path):
                 self.has_cfg_data = True
-                self.gcode.respond_info(f"Axiscope config file found ({self.config_file_path})")
+                self.gcode.respond_info(f"Offset config file found ({self.config_file_path})")
             else:
-                self.gcode.respond_info(f"Axiscope config file not found ({self.config_file_path})")
+                self.gcode.respond_info(f"Offset config file not found ({self.config_file_path})")
 
     def is_homed(self):
         toolhead = self.printer.lookup_object('toolhead')
@@ -163,7 +163,7 @@ class Axiscope:
                 if self.recover_pause_ms:
                     self.gcode.run_script_from_command(f"G4 P{self.recover_pause_ms}")
 
-        raise gcmd.error(f"Axiscope: Probe still triggered after recovery. {last_err}")
+        raise gcmd.error(f"Offset: Probe still triggered after recovery. {last_err}")
 
     def _effective_calc_method(self, gcmd):
         method = (gcmd.get('Z_CALC', self.z_calc_method) or self.z_calc_method).strip().lower()
@@ -247,7 +247,7 @@ class Axiscope:
             gcmd.respond_error("Must home first")
             return
 
-        self.cmd_AXISCOPE_START_GCODE(gcmd)
+        self.cmd_OFFSET_START_GCODE(gcmd)
 
         z_calc = (gcmd.get('Z_CALC', None) or '').strip().lower()
         if z_calc and z_calc not in ('median', 'average', 'avg', 'mean', 'trimmed', 'trim', 'trimmed_mean'):
@@ -257,8 +257,8 @@ class Axiscope:
         effective_method = self._effective_calc_method(gcmd)
         origin = "override" if z_calc else "config default"
 
-        self.gcode.respond_info(f"Axiscope: Z calculation method = {effective_method} ({origin})")
-        self.gcode.run_script_from_command(f"M118 Axiscope: Z calc = {effective_method} ({origin})")
+        self.gcode.respond_info(f"Offset: Z calculation method = {effective_method} ({origin})")
+        self.gcode.run_script_from_command(f"M118 Offset: Z calc = {effective_method} ({origin})")
 
         selected_tools = gcmd.get('TOOLS', None)
         if selected_tools:
@@ -309,9 +309,9 @@ class Axiscope:
         ref_trigger = None
 
         for tool in ordered_tools:
-            self.cmd_AXISCOPE_BEFORE_PICKUP_GCODE(gcmd)
+            self.cmd_OFFSET_BEFORE_PICKUP_GCODE(gcmd)
             self.gcode.run_script_from_command(f"T{tool}")
-            self.cmd_AXISCOPE_AFTER_PICKUP_GCODE(gcmd)
+            self.cmd_OFFSET_AFTER_PICKUP_GCODE(gcmd)
 
             self.gcode.run_script_from_command("MOVE_TO_ZSWITCH")
 
@@ -338,24 +338,24 @@ class Axiscope:
                         self.probe_results[key]['z_offset'] = z_trig - ref_trigger
                     self.probe_results[key]['ref_tool'] = ref_tool
 
-        self.cmd_AXISCOPE_FINISH_GCODE(gcmd)
+        self.cmd_OFFSET_FINISH_GCODE(gcmd)
 
-    def cmd_AXISCOPE_START_GCODE(self, gcmd):
+    def cmd_OFFSET_START_GCODE(self, gcmd):
         if self.start_gcode:
             self.start_gcode.run_gcode_from_command({})
 
-    def cmd_AXISCOPE_BEFORE_PICKUP_GCODE(self, gcmd):
+    def cmd_OFFSET_BEFORE_PICKUP_GCODE(self, gcmd):
         if self.before_pickup_gcode:
             self.before_pickup_gcode.run_gcode_from_command({})
 
-    def cmd_AXISCOPE_AFTER_PICKUP_GCODE(self, gcmd):
+    def cmd_OFFSET_AFTER_PICKUP_GCODE(self, gcmd):
         if self.after_pickup_gcode:
             self.after_pickup_gcode.run_gcode_from_command({})
 
-    def cmd_AXISCOPE_FINISH_GCODE(self, gcmd):
+    def cmd_OFFSET_FINISH_GCODE(self, gcmd):
         if self.finish_gcode:
             self.finish_gcode.run_gcode_from_command({})
 
 
 def load_config(config):
-    return Axiscope(config)
+    return Offset(config)

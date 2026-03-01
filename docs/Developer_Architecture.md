@@ -5,14 +5,14 @@
 File: js/tools.js
 
 Key elements:
-- axiscopeMasterTool (state)
+- offsetMasterTool (state)
 - computeDefaultRef()
 - applyMasterReferenceXY()
 - Dynamic rerender via getTools()
 
 ## Backend
 
-File: klippy/extras/axiscope.py
+File: klippy/extras/offset.py
 
 Key logic:
 - cmd_CALIBRATE_ALL_Z_OFFSETS()
@@ -21,4 +21,4 @@ Key logic:
 
 ## Data Flow
 
-Toolchanger → Axiscope Backend → RAW values → Master transformation → Display
+Toolchanger → Offset Backend → RAW values → Master transformation → Display
