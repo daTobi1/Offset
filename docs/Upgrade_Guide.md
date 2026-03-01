@@ -10,7 +10,7 @@
 ## Upgrade Steps
 
 1. Replace tools.js
-2. Replace axiscope.py
+2. Replace offset.py
 3. Restart Klipper
 4. Recalibrate all offsets
 

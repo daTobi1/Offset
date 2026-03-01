@@ -1,6 +1,6 @@
 # Configuration Reference
 
-## [axiscope]
+## [offset]
 
 zswitch_x_pos: X position of Z switch
 zswitch_y_pos: Y position of Z switch

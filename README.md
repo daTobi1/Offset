@@ -88,11 +88,11 @@ curl -sSL https://raw.githubusercontent.com/daTobi1/Offset/main/uninstall.sh | b
 
 The uninstall script will:
 
-- Stop and disable the Axiscope systemd service
+- Stop and disable the Offset systemd service
 - Remove the service file
-- Remove the Axiscope installation directory
+- Remove the Offset installation directory
 - Remove Moonraker service registration (moonraker.asvc)
-- Remove the [update_manager axiscope] section from moonraker.conf
+- Remove the [update_manager offset] section from moonraker.conf
 - Remove the Klipper extras symlink
 - Restart Moonraker and Klipper
 
@@ -101,7 +101,7 @@ The uninstall script will:
 If you want to use automatic Z calibration, add the following to your `printer.cfg`:
 
 ```ini
-[axiscope]
+[offset]
 
 # -------------------------------------------------
 # Web Interface
@@ -209,7 +209,7 @@ zswitch_z_pos: 7.8  # 4.8 + 3mm clearance
 
 ### G-code Macro Options
 
-Axiscope now supports templated G-code macros with full Jinja template support.
+Offset now supports templated G-code macros with full Jinja template support.
 
 - **start_gcode**: Executed at the beginning of calibration
 - **before_pickup_gcode**: Executed before each tool change
@@ -218,27 +218,27 @@ Axiscope now supports templated G-code macros with full Jinja template support.
 
 
 
-Offset is a modified and extended implementation based on the original Axiscope project by nic335.
+Offset is a modified and extended implementation based on the original Offset project by nic335.
 
-This project builds upon the idea and foundation of Axiscope and extends it with additional features, structural changes, and further development tailored to my personal workflow and experimental improvements.
+This project builds upon the idea and foundation of Offset and extends it with additional features, structural changes, and further development tailored to my personal workflow and experimental improvements.
 
 🙏 Credits & Original Project
 
 This project is based on the original work:
 
-Axiscope
+Offset
 Author: nic335
-Repository: https://github.com/nic335/Axiscope
+Repository: https://github.com/nic335/Offset
 
-All core ideas, the initial concept, and the inspiration originate from the Axiscope project.
+All core ideas, the initial concept, and the inspiration originate from the Offset project.
 
-Huge thanks to nic335 for creating Axiscope and making it available under the MIT License.
+Huge thanks to nic335 for creating Offset and making it available under the MIT License.
 
 🔎 What This Project Is
 
 Offset is:
 
-A derivative work inspired by Axiscope
+A derivative work inspired by Offset
 
 A modified implementation with structural and functional changes
 
@@ -250,7 +250,7 @@ Depending on the current development state, internal structure and implementatio
 
 📜 License
 
-This project is released under the MIT License, consistent with the original Axiscope project.
+This project is released under the MIT License, consistent with the original Offset project.
 
 In accordance with the MIT License:
 
@@ -264,10 +264,10 @@ See the LICENSE file for full details.
 
 ⚠ Disclaimer
 
-This is not the official Axiscope repository.
+This is not the official Offset repository.
 For the original implementation, please visit:
 
-👉 https://github.com/nic335/Axiscope
+👉 https://github.com/nic335/Offset
 
 If you are looking for the stable upstream version, use the original repository.
 

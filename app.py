@@ -15,7 +15,7 @@ def serve_files(path):
 if __name__ == '__main__':
     try:
         from waitress import serve
-        print("Starting AxisScope server on port 3000...")
+        print("Starting Offset server on port 3000...")
         serve(app, host='0.0.0.0', port=3000)
     except Exception as e:
         print(f"Error starting server: {e}")

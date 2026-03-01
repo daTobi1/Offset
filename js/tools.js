@@ -1,18 +1,18 @@
 /* =========================================================
-   Axiscope tools.js (Global Master + Config-default Z calc)
+   Offset tools.js (Global Master + Config-default Z calc)
    - Fixes: updateTools is defined (used by index.js)
    - Z calc dropdown:
-       Default = Config (axiscope.cfg)
-       Label shows axiscope status z_calc_method (e.g. trimmed)
+       Default = Config (offset.cfg)
+       Label shows offset status z_calc_method (e.g. trimmed)
        Only sends Z_CALC if user explicitly overrides
    ========================================================= */
 
-let axiscopeMasterTool = null;
+let offsetMasterTool = null;
 let _probeInterval = null;
 
-// Axiscope status cache
-let _axiscopePresent = false;
-let _axiscopeZCalcDefault = null; // "median" | "average" | "trimmed" | null
+// Offset status cache
+let _offsetPresent = false;
+let _offsetZCalcDefault = null; // "median" | "average" | "trimmed" | null
 
 // Remember UI dropdown selection across rerenders
 let _uiZCalcSelection = "config"; // "config" | "median" | "average" | "trimmed"
@@ -24,7 +24,7 @@ function printerUrl(ip, path) { return `http://${ip}${path}`; }
 
 function computeDefaultRef(toolNumbers) {
   const sorted = [...toolNumbers].sort((a, b) => a - b);
-  if (axiscopeMasterTool !== null && sorted.includes(axiscopeMasterTool)) return axiscopeMasterTool;
+  if (offsetMasterTool !== null && sorted.includes(offsetMasterTool)) return offsetMasterTool;
   if (sorted.includes(0)) return 0;
   return sorted.length ? sorted[0] : 0;
 }
@@ -35,7 +35,7 @@ function getSelectedReferenceTool(fallback = 0) {
     const v = parseInt($checked.val(), 10);
     return Number.isNaN(v) ? fallback : v;
   }
-  return axiscopeMasterTool ?? fallback;
+  return offsetMasterTool ?? fallback;
 }
 
 function syncSelectAllState() {
@@ -206,19 +206,28 @@ const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, disabled, tc_disa
 `;
 
 // --------------------------
-// Axiscope status fetch (for dropdown label + z fields)
+// Offset status fetch (for dropdown label + z fields)
 // --------------------------
-function fetchAxiscopeStatus() {
-  return $.get(printerUrl(printerIp, "/printer/objects/query?axiscope"))
-    .then(function(ax){
-      const st = ax?.result?.status?.axiscope;
-      _axiscopePresent = !!st;
-      _axiscopeZCalcDefault = (st?.z_calc_method || null);
+function queryOffsetObject() {
+  return $.get(printerUrl(printerIp, "/printer/objects/query?offset"))
+    .then(data => ({ status: data?.result?.status?.offset || null, objectName: "offset" }))
+    .catch(() =>
+      $.get(printerUrl(printerIp, "/printer/objects/query?axiscope"))
+        .then(data => ({ status: data?.result?.status?.axiscope || null, objectName: "axiscope" }))
+    );
+}
+
+function fetchOffsetStatus() {
+  return queryOffsetObject()
+    .then(function(result){
+      const st = result?.status;
+      _offsetPresent = !!st;
+      _offsetZCalcDefault = (st?.z_calc_method || null);
       return st || null;
     })
     .catch(function(){
-      _axiscopePresent = false;
-      _axiscopeZCalcDefault = null;
+      _offsetPresent = false;
+      _offsetZCalcDefault = null;
       return null;
     });
 }
@@ -227,8 +236,8 @@ function fetchAxiscopeStatus() {
 // Probe results (Z)
 // --------------------------
 function getProbeResults() {
-  return $.get(printerUrl(printerIp, "/printer/objects/query?axiscope"))
-    .then(data => data?.result?.status?.axiscope?.probe_results || {})
+  return queryOffsetObject()
+    .then(result => result?.status?.probe_results || {})
     .catch(() => ({}));
 }
 
@@ -276,8 +285,8 @@ function calibrateButton(toolNumbers = [], enabled = false) {
   const btnClass = enabled ? "btn-primary" : "btn-secondary";
   const disabledAttr = enabled ? "" : "disabled";
 
-  const cfg = (_axiscopeZCalcDefault || "unknown").toLowerCase();
-  const cfgLabel = `Config (axiscope.cfg: ${cfg})`;
+  const cfg = (_offsetZCalcDefault || "unknown").toLowerCase();
+  const cfgLabel = `Config (offset.cfg: ${cfg})`;
 
   const sel = (_uiZCalcSelection || "config").toLowerCase();
   const selConfig = sel === "config" ? "selected" : "";
@@ -389,7 +398,7 @@ $(document).on("change", ".calibrate-ref-checkbox", function () {
   $(this).prop("checked", true);
 
   const refVal = parseInt($(this).val(), 10);
-  if (!Number.isNaN(refVal)) axiscopeMasterTool = refVal;
+  if (!Number.isNaN(refVal)) offsetMasterTool = refVal;
 
   $(`#calibrate-tool-${refVal}`).prop("checked", true);
 
@@ -406,9 +415,9 @@ function toolChangeURL(tool) {
   let z_pos = parseFloat($("#captured-z").find(":first-child").text());
 
   if (Number.isNaN(x_pos) || Number.isNaN(y_pos) || Number.isNaN(z_pos)) {
-    let url = printerUrl(printerIp, "/printer/gcode/script?script=AXISCOPE_BEFORE_PICKUP_GCODE");
+    let url = printerUrl(printerIp, "/printer/gcode/script?script=OFFSET_BEFORE_PICKUP_GCODE");
     url += "%0AT" + tool;
-    url += "%0AAXISCOPE_AFTER_PICKUP_GCODE";
+    url += "%0AOFFSET_AFTER_PICKUP_GCODE";
     return url;
   }
 
@@ -426,9 +435,9 @@ function toolChangeURL(tool) {
   y_pos = y_pos.toFixed(3);
   z_pos = z_pos.toFixed(3);
 
-  let url = printerUrl(printerIp, "/printer/gcode/script?script=AXISCOPE_BEFORE_PICKUP_GCODE");
+  let url = printerUrl(printerIp, "/printer/gcode/script?script=OFFSET_BEFORE_PICKUP_GCODE");
   url += "%0AT" + tool;
-  url += "%0AAXISCOPE_AFTER_PICKUP_GCODE";
+  url += "%0AOFFSET_AFTER_PICKUP_GCODE";
   url += "%0ASAVE_GCODE_STATE NAME=RESTORE_POS";
   url += "%0AG90";
   url += "%0AG0 Z" + z_pos + " F3000";
@@ -475,9 +484,9 @@ function getTools() {
             }
           });
 
-          // Fetch axiscope status for cfg method label + enable button
-          fetchAxiscopeStatus().then(function(){
-            $("#tool-list").append(calibrateButton(tool_numbers, _axiscopePresent));
+          // Fetch offset status for cfg method label + enable button
+          fetchOffsetStatus().then(function(){
+            $("#tool-list").append(calibrateButton(tool_numbers, _offsetPresent));
 
             // Set reference checkbox to master
             $(".calibrate-ref-checkbox").prop("checked", false);
@@ -490,8 +499,8 @@ function getTools() {
             // Badge
             $("#master-status-badge").text(`Master: T${master}`);
 
-            // Show z-fields if axiscope present
-            if (_axiscopePresent) $('.z-fields').removeClass('d-none');
+            // Show z-fields if offset present
+            if (_offsetPresent) $('.z-fields').removeClass('d-none');
 
             startProbeResultsUpdatesOnce();
             updateAllProbeResults();

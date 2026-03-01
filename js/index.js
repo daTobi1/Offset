@@ -149,6 +149,20 @@ function ComandsUrl(axis, value) {
 
 // Event handlers for printer modal
 // Macro management
+function getStoredMacros() {
+    const offsetMacros = JSON.parse(localStorage.getItem('offset_macros') || '[]');
+    if (Array.isArray(offsetMacros) && offsetMacros.length) return offsetMacros;
+
+    // Backward-compat: migrate legacy key once.
+    const legacyMacros = JSON.parse(localStorage.getItem('axiscope_macros') || '[]');
+    if (Array.isArray(legacyMacros) && legacyMacros.length) {
+        localStorage.setItem('offset_macros', JSON.stringify(legacyMacros));
+        localStorage.removeItem('axiscope_macros');
+        return legacyMacros;
+    }
+    return [];
+}
+
 function saveMacro() {
     const name = $('#macro-name').val().trim();
     const command = $('#macro-command').val().trim();
@@ -159,13 +173,13 @@ function saveMacro() {
     }
     
     // Get existing macros or initialize empty array
-    let macros = JSON.parse(localStorage.getItem('axiscope_macros') || '[]');
+    let macros = getStoredMacros();
     
     // Add new macro
     macros.push({ name, command });
     
     // Save to localStorage
-    localStorage.setItem('axiscope_macros', JSON.stringify(macros));
+    localStorage.setItem('offset_macros', JSON.stringify(macros));
     
     // Clear inputs
     $('#macro-name').val('');
@@ -176,7 +190,7 @@ function saveMacro() {
 }
 
 function loadMacros() {
-    const macros = JSON.parse(localStorage.getItem('axiscope_macros') || '[]');
+    const macros = getStoredMacros();
     const $macroList = $('#macro-list');
     
     // Clear current list
@@ -207,7 +221,7 @@ function loadMacros() {
 }
 
 function executeMacro(index) {
-    const macros = JSON.parse(localStorage.getItem('axiscope_macros') || '[]');
+    const macros = getStoredMacros();
     const macro = macros[index];
     
     if (!macro) return;
@@ -224,10 +238,10 @@ function executeMacro(index) {
 }
 
 function deleteMacro(index) {
-    let macros = JSON.parse(localStorage.getItem('axiscope_macros') || '[]');
+    let macros = getStoredMacros();
     
     macros.splice(index, 1);
-    localStorage.setItem('axiscope_macros', JSON.stringify(macros));
+    localStorage.setItem('offset_macros', JSON.stringify(macros));
     
     loadMacros();
 }

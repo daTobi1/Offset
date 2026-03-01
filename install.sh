@@ -19,7 +19,8 @@ BRANCH="main"
 # venv outside repo (fix dirty repo)
 VENV_DIR="${HOME}/offset-env"
 
-# Klipper extra name (adjust if your file is still axiscope.py)
+## Klipper extra name
+# If you keep a legacy extra filename, adjust EXTRA_NAME manually.
 EXTRA_NAME="offset.py"
 EXTRA_SRC="${INSTALL_DIR}/klippy/extras/${EXTRA_NAME}"
 EXTRA_DST="${HOME}/klipper/klippy/extras/${EXTRA_NAME}"
@@ -83,8 +84,8 @@ append_if_missing() {
 
 append_if_missing "" "${GITIGNORE_FILE}"
 append_if_missing "# Python venv (must never be tracked)" "${GITIGNORE_FILE}"
-append_if_missing "axiscope-env/" "${GITIGNORE_FILE}"
 append_if_missing "offset-env/" "${GITIGNORE_FILE}"
+append_if_missing "axiscope-env/" "${GITIGNORE_FILE}"
 append_if_missing ".venv/" "${GITIGNORE_FILE}"
 append_if_missing "" "${GITIGNORE_FILE}"
 append_if_missing "# Python caches" "${GITIGNORE_FILE}"
@@ -95,8 +96,8 @@ append_if_missing "*.pyc" "${GITIGNORE_FILE}"
 echo "Cleaning any tracked venv from git index (best effort)..."
 (
   cd "${INSTALL_DIR}"
+  git rm -r --cached offset-env >/dev/null 2>&1 || true
   git rm -r --cached axiscope-env >/dev/null 2>&1 || true
-  git rm -r --cached offset-env  >/dev/null 2>&1 || true
 ) || true
 
 # Dependencies
@@ -149,7 +150,7 @@ echo "Creating service file..."
 SERVICE_FILE="${INSTALL_DIR}/${APP_NAME}.service"
 cat > "${SERVICE_FILE}" <<EOL
 [Unit]
-Description=Offset - Tool Alignment Interface for Klipper (based on Axiscope)
+Description=Offset - Tool Alignment Interface for Klipper (based on Offset)
 After=network.target moonraker.service
 StartLimitIntervalSec=0
 
@@ -219,7 +220,7 @@ sudo systemctl restart moonraker
 echo "Adding symlink into klipper extras..."
 if [ ! -f "${EXTRA_SRC}" ]; then
   echo "WARNING: Extra file not found: ${EXTRA_SRC}"
-  echo "If your extra is still named axiscope.py, set EXTRA_NAME=\"axiscope.py\" in install.sh."
+  echo "If your extra is still named offset.py, set EXTRA_NAME=\"offset.py\" in install.sh."
 else
   sudo ln -sf "${EXTRA_SRC}" "${EXTRA_DST}"
   sudo systemctl restart klipper
