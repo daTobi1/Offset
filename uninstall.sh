@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # Default values
+OFFSET_ENV="offset-env"
 INSTALL_DIR="$HOME/offset"
 SERVICE_NAME="offset.service"
 MOONRAKER_CONF="$HOME/printer_data/config/moonraker.conf"
@@ -45,7 +46,6 @@ fi
 if [ -f "${MOONRAKER_ASVC}" ]; then
     echo "Removing from moonraker.asvc..."
     sed -i '/^offset$/d' "${MOONRAKER_ASVC}"
-    sed -i '/^axiscope$/d' "${MOONRAKER_ASVC}"
 fi
 
 # Remove update_manager block cleanly
@@ -53,7 +53,7 @@ if [ -f "${MOONRAKER_CONF}" ]; then
     echo "Removing update manager configuration..."
     awk '
         BEGIN{skip=0}
-        /^\[update_manager (offset|axiscope)\]/{skip=1; next}
+        /^\[update_manager offset\]/{skip=1; next}
         /^\[.*\]/{if(skip==1){skip=0}}
         skip==0{print}
     ' "${MOONRAKER_CONF}" > "${MOONRAKER_CONF}.tmp"
@@ -74,4 +74,4 @@ echo "Restarting services..."
 sudo systemctl restart moonraker 2>/dev/null || true
 sudo systemctl restart klipper 2>/dev/null || true
 
-echo "Offset has been uninstalled successfully!"
+echo "Offset (Offset-V2) has been uninstalled successfully!"

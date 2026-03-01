@@ -173,7 +173,7 @@ function saveMacro() {
     }
     
     // Get existing macros or initialize empty array
-    let macros = getStoredMacros();
+    let macros = JSON.parse(localStorage.getItem('offset_macros') || '[]');
     
     // Add new macro
     macros.push({ name, command });
@@ -190,7 +190,7 @@ function saveMacro() {
 }
 
 function loadMacros() {
-    const macros = getStoredMacros();
+    const macros = JSON.parse(localStorage.getItem('offset_macros') || '[]');
     const $macroList = $('#macro-list');
     
     // Clear current list
@@ -221,7 +221,7 @@ function loadMacros() {
 }
 
 function executeMacro(index) {
-    const macros = getStoredMacros();
+    const macros = JSON.parse(localStorage.getItem('offset_macros') || '[]');
     const macro = macros[index];
     
     if (!macro) return;
@@ -238,7 +238,7 @@ function executeMacro(index) {
 }
 
 function deleteMacro(index) {
-    let macros = getStoredMacros();
+    let macros = JSON.parse(localStorage.getItem('offset_macros') || '[]');
     
     macros.splice(index, 1);
     localStorage.setItem('offset_macros', JSON.stringify(macros));

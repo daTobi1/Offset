@@ -19,8 +19,7 @@ BRANCH="main"
 # venv outside repo (fix dirty repo)
 VENV_DIR="${HOME}/offset-env"
 
-## Klipper extra name
-# If you keep a legacy extra filename, adjust EXTRA_NAME manually.
+# Klipper extra name (adjust if your file is still offset.py)
 EXTRA_NAME="offset.py"
 EXTRA_SRC="${INSTALL_DIR}/klippy/extras/${EXTRA_NAME}"
 EXTRA_DST="${HOME}/klipper/klippy/extras/${EXTRA_NAME}"
@@ -97,7 +96,6 @@ echo "Cleaning any tracked venv from git index (best effort)..."
 (
   cd "${INSTALL_DIR}"
   git rm -r --cached offset-env >/dev/null 2>&1 || true
-  git rm -r --cached axiscope-env >/dev/null 2>&1 || true
 ) || true
 
 # Dependencies

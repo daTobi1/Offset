@@ -83,12 +83,6 @@ class Offset:
         self.gcode.register_command('OFFSET_AFTER_PICKUP_GCODE', self.cmd_OFFSET_AFTER_PICKUP_GCODE)
         self.gcode.register_command('OFFSET_FINISH_GCODE', self.cmd_OFFSET_FINISH_GCODE)
 
-        # Backward-compat aliases for existing macro setups.
-        self.gcode.register_command('AXISCOPE_START_GCODE', self.cmd_OFFSET_START_GCODE)
-        self.gcode.register_command('AXISCOPE_BEFORE_PICKUP_GCODE', self.cmd_OFFSET_BEFORE_PICKUP_GCODE)
-        self.gcode.register_command('AXISCOPE_AFTER_PICKUP_GCODE', self.cmd_OFFSET_AFTER_PICKUP_GCODE)
-        self.gcode.register_command('AXISCOPE_FINISH_GCODE', self.cmd_OFFSET_FINISH_GCODE)
-
     def handle_connect(self):
         if self.config_file_path:
             self.config_file_path = os.path.expanduser(self.config_file_path)

@@ -208,19 +208,10 @@ const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, disabled, tc_disa
 // --------------------------
 // Offset status fetch (for dropdown label + z fields)
 // --------------------------
-function queryOffsetObject() {
-  return $.get(printerUrl(printerIp, "/printer/objects/query?offset"))
-    .then(data => ({ status: data?.result?.status?.offset || null, objectName: "offset" }))
-    .catch(() =>
-      $.get(printerUrl(printerIp, "/printer/objects/query?axiscope"))
-        .then(data => ({ status: data?.result?.status?.axiscope || null, objectName: "axiscope" }))
-    );
-}
-
 function fetchOffsetStatus() {
-  return queryOffsetObject()
-    .then(function(result){
-      const st = result?.status;
+  return $.get(printerUrl(printerIp, "/printer/objects/query?offset"))
+    .then(function(ax){
+      const st = ax?.result?.status?.offset;
       _offsetPresent = !!st;
       _offsetZCalcDefault = (st?.z_calc_method || null);
       return st || null;
@@ -236,8 +227,8 @@ function fetchOffsetStatus() {
 // Probe results (Z)
 // --------------------------
 function getProbeResults() {
-  return queryOffsetObject()
-    .then(result => result?.status?.probe_results || {})
+  return $.get(printerUrl(printerIp, "/printer/objects/query?offset"))
+    .then(data => data?.result?.status?.offset?.probe_results || {})
     .catch(() => ({}));
 }
 
