@@ -68,7 +68,7 @@ See `/docs` folder for:
 Quick installation using curl:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/daTobi1/Axsiscope-V2/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/daTobi1/Offset/main/install.sh | bash
 ```
 
 The install script will:
