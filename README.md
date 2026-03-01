@@ -216,4 +216,73 @@ Axiscope now supports templated G-code macros with full Jinja template support.
 - **after_pickup_gcode**: Executed after each tool change
 - **finish_gcode**: Executed after calibration is complete
 
-Generated: 2026-02-14 19:40
+
+
+Offset is a modified and extended implementation based on the original Axiscope project by nic335.
+
+This project builds upon the idea and foundation of Axiscope and extends it with additional features, structural changes, and further development tailored to my personal workflow and experimental improvements.
+
+🙏 Credits & Original Project
+
+This project is based on the original work:
+
+Axiscope
+Author: nic335
+Repository: https://github.com/nic335/Axiscope
+
+All core ideas, the initial concept, and the inspiration originate from the Axiscope project.
+
+Huge thanks to nic335 for creating Axiscope and making it available under the MIT License.
+
+🔎 What This Project Is
+
+Offset is:
+
+A derivative work inspired by Axiscope
+
+A modified implementation with structural and functional changes
+
+An experimental extension with additional configuration options and workflow adjustments
+
+A personal development branch exploring alternative approaches
+
+Depending on the current development state, internal structure and implementation details may significantly differ from the original project.
+
+📜 License
+
+This project is released under the MIT License, consistent with the original Axiscope project.
+
+In accordance with the MIT License:
+
+The original copyright notice and license must be preserved.
+
+This project includes and builds upon work originally created by nic335.
+
+Attribution to the original author is maintained.
+
+See the LICENSE file for full details.
+
+⚠ Disclaimer
+
+This is not the official Axiscope repository.
+For the original implementation, please visit:
+
+👉 https://github.com/nic335/Axiscope
+
+If you are looking for the stable upstream version, use the original repository.
+
+🤝 Intent
+
+This repository is created with full respect for the original author and project.
+
+The goal is:
+
+To explore improvements
+
+To experiment with alternative implementations
+
+To potentially contribute ideas back to the original project
+
+To collaborate respectfully within the open-source spirit
+
+If any part of this repository needs clarification regarding attribution or licensing, please open an issue.
