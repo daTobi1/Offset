@@ -1,4 +1,4 @@
-# Axiscope – Global Master Calibration System
+# Offset – Global Master Calibration System
 
 Professional multi-tool calibration framework for Klipper toolchanger systems.
 
