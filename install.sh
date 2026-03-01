@@ -3,7 +3,7 @@
 # Default values
 AXISCOPE_ENV="axiscope-env"
 INSTALL_DIR="$HOME/axiscope"
-REPO_URL="https://github.com/daTobi1/Axsiscope-V2.git"
+REPO_URL="https://github.com/daTobi1/Offset.git"
 BRANCH="main"
 
 # Parse command line arguments
@@ -22,6 +22,7 @@ done
 
 cd ~
 echo "Installing AxisScope..."
+echo "Repository: ${REPO_URL}"
 echo "Using branch: ${BRANCH}"
 
 # Check for existing installation
@@ -32,11 +33,14 @@ if [ -d "${INSTALL_DIR}" ]; then
 fi
 
 # Clone repository
-echo "Cloning AxisScope repository..."
-git clone -b ${BRANCH} ${REPO_URL} ${INSTALL_DIR}
+echo "Cloning repository..."
+git clone -b "${BRANCH}" "${REPO_URL}" "${INSTALL_DIR}" || {
+    echo "Failed to clone repository"
+    exit 1
+}
 
 # Check if running as root
-if [ "$EUID" -eq 0 ]; then 
+if [ "$EUID" -eq 0 ]; then
     echo "Please do not run as root/sudo. Installation will prompt for sudo when needed."
     exit 1
 fi
@@ -148,9 +152,10 @@ else
 fi
 
 echo "Adding update manager configuration..."
-if [ -f "${HOME}/printer_data/config/moonraker.conf" ]; then
-    if ! grep -q "\[update_manager axiscope\]" "${HOME}/printer_data/config/moonraker.conf"; then
-        cat >> "${HOME}/printer_data/config/moonraker.conf" << EOL
+MOONRAKER_CONF="${HOME}/printer_data/config/moonraker.conf"
+if [ -f "${MOONRAKER_CONF}" ]; then
+    if ! grep -q "\[update_manager axiscope\]" "${MOONRAKER_CONF}"; then
+        cat >> "${MOONRAKER_CONF}" << EOL
 
 
 [update_manager axiscope]
@@ -179,7 +184,7 @@ echo "Restarting moonraker..."
 sudo systemctl restart moonraker
 
 echo "Adding symlink into klipper extras..."
-sudo ln -s ${HOME}/axiscope/klippy/extras/axiscope.py ${HOME}/klipper/klippy/extras/axiscope.py
+sudo ln -sf "${HOME}/axiscope/klippy/extras/axiscope.py" "${HOME}/klipper/klippy/extras/axiscope.py"
 sudo systemctl restart klipper
 
 echo "Installation complete!"
