@@ -83,7 +83,7 @@ The install script will:
 Quick uninstall using curl:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/daTobi1/Axsiscope-V2/main/uninstall.sh | bash
+curl -sSL https://raw.githubusercontent.com/daTobi1/Offset/main/uninstall.sh | bash
 ```
 
 The uninstall script will:
