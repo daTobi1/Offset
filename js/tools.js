@@ -62,7 +62,7 @@ function applyMasterReferenceXY(axis) {
 // --------------------------
 // Templates
 // --------------------------
-const masterToolItem = ({tool_number, disabled, tc_disabled}) => `
+const masterToolItem = ({tool_number, cx_offset, cy_offset, cz_offset, disabled, tc_disabled}) => `
 <li class="list-group-item bg-body-tertiary p-2">
   <div class="container">
     <div class="row">
@@ -116,6 +116,17 @@ const masterToolItem = ({tool_number, disabled, tc_disabled}) => `
             <div class="col-6"><small>Z-Trigger:</small></div>
             <div class="col-6 text-end"><span id="T${tool_number}-z-trigger"><small>-</small></span></div>
           </div>
+
+          <hr class="my-2"/>
+
+          <button type="button"
+                  class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
+                  data-tool="${tool_number}"
+                  data-gcode-x-offset="${cx_offset}"
+                  data-gcode-y-offset="${cy_offset}"
+                  data-gcode-z-offset="${cz_offset}">
+            Copy Offsets
+          </button>
         </div>
       </div>
     </div>
@@ -123,7 +134,7 @@ const masterToolItem = ({tool_number, disabled, tc_disabled}) => `
 </li>
 `;
 
-const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, disabled, tc_disabled}) => `
+const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, cz_offset, disabled, tc_disabled}) => `
 <li class="list-group-item bg-body-tertiary p-2">
   <div class="container">
     <div class="row">
@@ -196,6 +207,19 @@ const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, disabled, tc_disa
               <span class="fs-6 lh-sm"><small>New Z</small></span>
               <span class="fs-5 lh-sm" id="T${tool_number}-z-new"><small>0.0</small></span>
             </div>
+
+            <div class="row mt-2">
+              <div class="col-12">
+                <button type="button"
+                        class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
+                        data-tool="${tool_number}"
+                        data-gcode-x-offset="${cx_offset}"
+                        data-gcode-y-offset="${cy_offset}"
+                        data-gcode-z-offset="${cz_offset}">
+                  Copy Offsets
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -251,6 +275,32 @@ function startProbeResultsUpdatesOnce() {
   if (_probeInterval) return;
   _probeInterval = setInterval(updateAllProbeResults, 2000);
 }
+
+function normalizeOffsetValue(value) {
+  const parsed = parseFloat(value);
+  if (Number.isNaN(parsed)) return "0.000";
+  return parsed.toFixed(3);
+}
+
+function buildOffsetCopyText(xOffset, yOffset, zOffset) {
+  return [
+    `gcode_x_offset: ${normalizeOffsetValue(xOffset)}`,
+    `gcode_y_offset: ${normalizeOffsetValue(yOffset)}`,
+    `gcode_z_offset: ${normalizeOffsetValue(zOffset)}`
+  ].join("\n");
+}
+
+$(document).on("click", ".copy-offset-btn", function() {
+  const text = buildOffsetCopyText(
+    $(this).data("gcode-x-offset"),
+    $(this).data("gcode-y-offset"),
+    $(this).data("gcode-z-offset")
+  );
+
+  if (navigator?.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  }
+});
 
 // --------------------------
 // Calibration UI
@@ -464,14 +514,15 @@ function getTools() {
             const toolObj = toolData.result.status[tool_names[i]];
             const cx = toolObj.gcode_x_offset.toFixed(3);
             const cy = toolObj.gcode_y_offset.toFixed(3);
+            const cz = normalizeOffsetValue(toolObj.gcode_z_offset);
 
             const disabled = tool_number !== active_tool ? "disabled" : "";
             const tc_disabled = tool_number === active_tool ? "disabled" : "";
 
             if (tool_number === master) {
-              $("#tool-list").append(masterToolItem({tool_number, disabled, tc_disabled}));
+              $("#tool-list").append(masterToolItem({tool_number, cx_offset: cx, cy_offset: cy, cz_offset: cz, disabled, tc_disabled}));
             } else {
-              $("#tool-list").append(nonMasterToolItem({tool_number, cx_offset: cx, cy_offset: cy, disabled, tc_disabled}));
+              $("#tool-list").append(nonMasterToolItem({tool_number, cx_offset: cx, cy_offset: cy, cz_offset: cz, disabled, tc_disabled}));
             }
           });
 
