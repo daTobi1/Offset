@@ -609,10 +609,14 @@ $(document).on("click", "button", function(e) {
         });
     } else if ($(this).data("axis")){
         const tool = $(this).data("tool");
-        const axis = $(this).data("axis");
-        const position = $("#pos-"+axis).text();
-        
-        $("input[name=T"+tool+"-"+axis+"-pos]").val(position);
+        const axis = String($(this).data("axis")).toLowerCase();
+        const position = parseFloat($("#pos-"+axis).text());
+
+        if (!Number.isNaN(position)) {
+            $("input[name=T"+tool+"-"+axis+"-pos]").val(position.toFixed(3));
+        }
+
+        // Clicking X/Y should always recompute the matching axis offset.
         updateOffset(tool, axis);
     } else if ($(this).is("#capture-pos")) {
         const x_pos = parseFloat($("#pos-x").text()).toFixed(3);
