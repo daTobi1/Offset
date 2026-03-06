@@ -44,6 +44,36 @@ function syncSelectAllState() {
   $("#calibrate-select-all").prop("checked", $all.length > 0 && $all.length === $checked.length);
 }
 
+function formatClipboardNumber(value) {
+  if (!Number.isFinite(value)) return null;
+  const fixed = value.toFixed(3);
+  const trimmed = fixed.replace(/(\.\d*?[1-9])0+$/u, "$1");
+  return trimmed.replace(/\.0+$/u, ".0");
+}
+
+function copyTextToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text);
+  }
+
+  return new Promise(function(resolve, reject) {
+    const $tmp = $('<textarea>');
+    $tmp.val(text).css({position: 'fixed', left: '-9999px', top: '-9999px'});
+    $('body').append($tmp);
+    $tmp.trigger('select');
+
+    try {
+      const ok = document.execCommand('copy');
+      $tmp.remove();
+      if (ok) resolve();
+      else reject(new Error('copy failed'));
+    } catch (err) {
+      $tmp.remove();
+      reject(err);
+    }
+  });
+}
+
 function applyMasterReferenceXY(axis) {
   const master = getSelectedReferenceTool(0);
   const $masterEl = $(`#T${master}-${axis}-new`);
@@ -186,11 +216,11 @@ const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, disabled, tc_disa
           <div class="col-6 pt-2 pb-2">
             <div class="row pb-1">
               <span class="fs-6 lh-sm"><small>New X</small></span>
-              <span class="fs-5 lh-sm" id="T${tool_number}-x-new" data-raw="0.000"><small>0.0</small></span>
+              <span class="fs-5 lh-sm" id="T${tool_number}-x-new" data-raw="0.000" title="Click to copy gcode_x_offset" style="cursor:pointer;"><small>0.0</small></span>
             </div>
             <div class="row pb-1">
               <span class="fs-6 lh-sm"><small>New Y</small></span>
-              <span class="fs-5 lh-sm" id="T${tool_number}-y-new" data-raw="0.000"><small>0.0</small></span>
+              <span class="fs-5 lh-sm" id="T${tool_number}-y-new" data-raw="0.000" title="Click to copy gcode_y_offset" style="cursor:pointer;"><small>0.0</small></span>
             </div>
             <div class="row pb-1">
               <span class="fs-6 lh-sm"><small>New Z</small></span>
@@ -367,6 +397,29 @@ $(document).on("click", "#calibrate-all-btn", function() {
   $.get(printerUrl(printerIp, `/printer/gcode/script?script=${encodeURIComponent(script)}`))
     .done(() => console.log("Calibration started:", script))
     .fail(err => console.error("Calibration failed:", err));
+});
+
+$(document).on("click", "span[id$='-x-new'], span[id$='-y-new']", function() {
+  const id = $(this).attr("id") || "";
+  const match = id.match(/-([xy])-new$/u);
+  if (!match) return;
+
+  const axis = match[1];
+  const rawText = $(this).attr("data-raw") || $(this).find(":first-child").text();
+  const numericValue = parseFloat(rawText);
+  if (Number.isNaN(numericValue)) return;
+
+  const value = formatClipboardNumber(numericValue);
+  if (value === null) return;
+
+  const payload = `gcode_${axis}_offset: ${value}`;
+  copyTextToClipboard(payload)
+    .then(function() {
+      console.log(`Copied ${payload}`);
+    })
+    .catch(function(err) {
+      console.error('Clipboard copy failed:', err);
+    });
 });
 
 // Select all
