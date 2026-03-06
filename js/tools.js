@@ -20,8 +20,6 @@ let _uiZCalcSelection = "config"; // "config" | "median" | "average" | "trimmed"
 // --------------------------
 // Helpers
 // --------------------------
-function printerUrl(ip, path) { return `http://${ip}${path}`; }
-
 function computeDefaultRef(toolNumbers) {
   const sorted = [...toolNumbers].sort((a, b) => a - b);
   if (offsetMasterTool !== null && sorted.includes(offsetMasterTool)) return offsetMasterTool;
