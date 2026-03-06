@@ -544,19 +544,34 @@ function updateOffset(tool, axis) {
 // --------------------------
 function updateTools(tool_numbers, tool_number_active) {
   const master = getSelectedReferenceTool(0);
+  const activeTool = parseInt(tool_number_active, 10);
 
   // Capture button enabled only if master tool is active
   const $captureBtn = $("#capture-pos");
   if ($captureBtn.length) {
-    if (parseInt(tool_number_active, 10) !== parseInt(master, 10)) {
+    if (activeTool !== parseInt(master, 10)) {
       $captureBtn.addClass("disabled").prop("disabled", true);
     } else {
       $captureBtn.removeClass("disabled").prop("disabled", false);
     }
   }
 
-  // Refresh XY display
+  // Keep tool row controls synced with currently loaded tool.
+  // Only the active tool may fetch/write XY values.
   (tool_numbers || []).forEach((tool_no) => {
+    const isActive = parseInt(tool_no, 10) === activeTool;
+
+    $(`#T${tool_no}-fetch-x, #T${tool_no}-fetch-y`)
+      .toggleClass("disabled", !isActive)
+      .prop("disabled", !isActive);
+
+    $(`input[name=T${tool_no}-x-pos], input[name=T${tool_no}-y-pos]`)
+      .prop("disabled", !isActive);
+
+    // Active tool cannot be selected again.
+    const $tcBtn = $(`button#toolchange[data-tool=${tool_no}]`);
+    $tcBtn.toggleClass("disabled", isActive).prop("disabled", isActive);
+
     updateOffset(tool_no, "x");
     updateOffset(tool_no, "y");
   });
