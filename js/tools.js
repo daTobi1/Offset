@@ -46,7 +46,9 @@ function syncSelectAllState() {
 
 function formatClipboardNumber(value) {
   if (!Number.isFinite(value)) return null;
-  return value.toFixed(3);
+  const fixed = value.toFixed(3);
+  const trimmed = fixed.replace(/(\.\d*?[1-9])0+$/u, "$1");
+  return trimmed.replace(/\.0+$/u, ".0");
 }
 
 function copyTextToClipboard(text) {
@@ -400,9 +402,9 @@ $(document).on("click", "#calibrate-all-btn", function() {
     .fail(err => console.error("Calibration failed:", err));
 });
 
-$(document).on("click", "span[id$='-x-new'], span[id$='-y-new'], span[id$='-z-new']", function() {
+$(document).on("click", "span[id$='-x-new'], span[id$='-y-new']", function() {
   const id = $(this).attr("id") || "";
-  const match = id.match(/-([xyz])-new$/u);
+  const match = id.match(/-([xy])-new$/u);
   if (!match) return;
 
   const axis = match[1];
@@ -417,31 +419,6 @@ $(document).on("click", "span[id$='-x-new'], span[id$='-y-new'], span[id$='-z-ne
   copyTextToClipboard(payload)
     .then(function() {
       console.log(`Copied ${payload}`);
-    })
-    .catch(function(err) {
-      console.error('Clipboard copy failed:', err);
-    });
-});
-
-$(document).on("click", "button[data-copy-all]", function() {
-  const tool = $(this).attr("data-copy-all");
-  if (tool === undefined || tool === "") return;
-
-  const xValue = formatClipboardNumber(parseFloat($(`#T${tool}-x-new`).attr("data-raw")));
-  const yValue = formatClipboardNumber(parseFloat($(`#T${tool}-y-new`).attr("data-raw")));
-  const zValue = formatClipboardNumber(parseFloat($(`#T${tool}-z-new`).find(":first-child").text()));
-
-  if (xValue === null || yValue === null || zValue === null) return;
-
-  const payload = [
-    `gcode_x_offset: ${xValue}`,
-    `gcode_y_offset: ${yValue}`,
-    `gcode_z_offset: ${zValue}`
-  ].join("\n");
-
-  copyTextToClipboard(payload)
-    .then(function() {
-      console.log(`Copied all offsets for T${tool}`);
     })
     .catch(function(err) {
       console.error('Clipboard copy failed:', err);
