@@ -414,9 +414,15 @@ function toolChangeURL(tool) {
 
   const master = getSelectedReferenceTool(0);
   if (String(tool) !== String(master)) {
-    const tool_x = parseFloat($(`input[name=T${tool}-x-pos]`).val()) || 0.0;
-    const tool_y = parseFloat($(`input[name=T${tool}-y-pos]`).val()) || 0.0;
-    if (tool_x !== 0.0 && tool_y !== 0.0) {
+    const rawX = $(`input[name=T${tool}-x-pos]`).val();
+    const rawY = $(`input[name=T${tool}-y-pos]`).val();
+    const tool_x = parseFloat(rawX);
+    const tool_y = parseFloat(rawY);
+
+    const hasX = rawX !== "" && rawX !== undefined && !Number.isNaN(tool_x);
+    const hasY = rawY !== "" && rawY !== undefined && !Number.isNaN(tool_y);
+
+    if (hasX && hasY) {
       x_pos = tool_x;
       y_pos = tool_y;
     }
@@ -507,12 +513,14 @@ function updateOffset(tool, axis) {
   const $newEl = $(`#T${tool}-${axis}-new`);
   if (!$newEl.length) return;
 
-  const position = parseFloat($(`input[name=T${tool}-${axis}-pos]`).val()) || 0.0;
+  const rawPosition = $(`input[name=T${tool}-${axis}-pos]`).val();
+  const position = parseFloat(rawPosition);
+  const hasPosition = rawPosition !== "" && rawPosition !== undefined && !Number.isNaN(position);
   const capturedText = $(`#captured-${axis}`).find(":first-child").text();
+  const captured_pos = parseFloat(capturedText);
+  const old_offset = parseFloat($(`#T${tool}-${axis}-offset`).text());
 
-  if (position !== 0.0 && capturedText !== "") {
-    const captured_pos = parseFloat(capturedText);
-    const old_offset = parseFloat($(`#T${tool}-${axis}-offset`).text());
+  if (hasPosition && capturedText !== "" && !Number.isNaN(captured_pos) && !Number.isNaN(old_offset)) {
 
     let new_offset = (captured_pos - old_offset) - position;
 
