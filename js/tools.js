@@ -119,35 +119,14 @@ const masterToolItem = ({tool_number, cx_offset, cy_offset, cz_offset, disabled,
 
           <hr class="my-2"/>
 
-          <div class="mt-1">
-            <small class="text-secondary d-block mb-1">Copy Offsets</small>
-            <div class="d-grid gap-1">
-              <button type="button"
-                      class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
-                      data-copy-mode="x"
-                      data-gcode-x-offset="${cx_offset}"
-                      data-gcode-y-offset="${cy_offset}"
-                      data-gcode-z-offset="${cz_offset}">Copy X Offset</button>
-              <button type="button"
-                      class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
-                      data-copy-mode="y"
-                      data-gcode-x-offset="${cx_offset}"
-                      data-gcode-y-offset="${cy_offset}"
-                      data-gcode-z-offset="${cz_offset}">Copy Y Offset</button>
-              <button type="button"
-                      class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
-                      data-copy-mode="z"
-                      data-gcode-x-offset="${cx_offset}"
-                      data-gcode-y-offset="${cy_offset}"
-                      data-gcode-z-offset="${cz_offset}">Copy Z Offset</button>
-              <button type="button"
-                      class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
-                      data-copy-mode="all"
-                      data-gcode-x-offset="${cx_offset}"
-                      data-gcode-y-offset="${cy_offset}"
-                      data-gcode-z-offset="${cz_offset}">Copy All Offsets</button>
-            </div>
-          </div>
+          <button type="button"
+                  class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
+                  data-tool="${tool_number}"
+                  data-gcode-x-offset="${cx_offset}"
+                  data-gcode-y-offset="${cy_offset}"
+                  data-gcode-z-offset="${cz_offset}">
+            Copy Offsets
+          </button>
         </div>
       </div>
     </div>
@@ -231,33 +210,14 @@ const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, cz_offset, disabl
 
             <div class="row mt-2">
               <div class="col-12">
-                <small class="text-secondary d-block mb-1">Copy Offsets</small>
-                <div class="d-grid gap-1">
-                  <button type="button"
-                          class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
-                          data-copy-mode="x"
-                          data-gcode-x-offset="${cx_offset}"
-                          data-gcode-y-offset="${cy_offset}"
-                          data-gcode-z-offset="${cz_offset}">Copy X Offset</button>
-                  <button type="button"
-                          class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
-                          data-copy-mode="y"
-                          data-gcode-x-offset="${cx_offset}"
-                          data-gcode-y-offset="${cy_offset}"
-                          data-gcode-z-offset="${cz_offset}">Copy Y Offset</button>
-                  <button type="button"
-                          class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
-                          data-copy-mode="z"
-                          data-gcode-x-offset="${cx_offset}"
-                          data-gcode-y-offset="${cy_offset}"
-                          data-gcode-z-offset="${cz_offset}">Copy Z Offset</button>
-                  <button type="button"
-                          class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
-                          data-copy-mode="all"
-                          data-gcode-x-offset="${cx_offset}"
-                          data-gcode-y-offset="${cy_offset}"
-                          data-gcode-z-offset="${cz_offset}">Copy All Offsets</button>
-                </div>
+                <button type="button"
+                        class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
+                        data-tool="${tool_number}"
+                        data-gcode-x-offset="${cx_offset}"
+                        data-gcode-y-offset="${cy_offset}"
+                        data-gcode-z-offset="${cz_offset}">
+                  Copy Offsets
+                </button>
               </div>
             </div>
           </div>
@@ -330,55 +290,17 @@ function buildOffsetCopyText(xOffset, yOffset, zOffset) {
   ].join("\n");
 }
 
-function buildSingleOffsetCopyText(axis, value) {
-  return `gcode_${axis}_offset: ${normalizeOffsetValue(value)}`;
-}
-
 $(document).on("click", ".copy-offset-btn", function() {
-  const mode = String($(this).data("copy-mode") || "all").toLowerCase();
-  const x = $(this).data("gcode-x-offset");
-  const y = $(this).data("gcode-y-offset");
-  const z = $(this).data("gcode-z-offset");
-
-  let text = buildOffsetCopyText(x, y, z);
-  if (mode === "x") text = buildSingleOffsetCopyText("x", x);
-  if (mode === "y") text = buildSingleOffsetCopyText("y", y);
-  if (mode === "z") text = buildSingleOffsetCopyText("z", z);
+  const text = buildOffsetCopyText(
+    $(this).data("gcode-x-offset"),
+    $(this).data("gcode-y-offset"),
+    $(this).data("gcode-z-offset")
+  );
 
   if (navigator?.clipboard?.writeText) {
     navigator.clipboard.writeText(text).catch(() => {});
   }
 });
-
-function upgradeLegacyCopyButtons() {
-  $(".copy-offset-btn").each(function() {
-    const $btn = $(this);
-    const mode = String($btn.data("copy-mode") || "").toLowerCase();
-    if (mode) return; // already new multi-button UI
-
-    const x = $btn.data("gcode-x-offset");
-    const y = $btn.data("gcode-y-offset");
-    const z = $btn.data("gcode-z-offset");
-
-    const $group = $(
-      '<div class="d-grid gap-1 legacy-copy-offset-group">'
-      + '<button type="button" class="btn btn-outline-light btn-sm w-100 copy-offset-btn" data-copy-mode="x">Copy X Offset</button>'
-      + '<button type="button" class="btn btn-outline-light btn-sm w-100 copy-offset-btn" data-copy-mode="y">Copy Y Offset</button>'
-      + '<button type="button" class="btn btn-outline-light btn-sm w-100 copy-offset-btn" data-copy-mode="z">Copy Z Offset</button>'
-      + '<button type="button" class="btn btn-outline-light btn-sm w-100 copy-offset-btn" data-copy-mode="all">Copy All Offsets</button>'
-      + '</div>'
-    );
-
-    $group.find(".copy-offset-btn").attr("data-gcode-x-offset", x)
-      .attr("data-gcode-y-offset", y)
-      .attr("data-gcode-z-offset", z);
-
-    const $label = $('<small class="text-secondary d-block mb-1">Copy Offsets</small>');
-    const $wrapper = $('<div class="mt-1"></div>').append($label).append($group);
-
-    $btn.replaceWith($wrapper);
-  });
-}
 
 // --------------------------
 // Calibration UI
