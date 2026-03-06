@@ -44,6 +44,34 @@ function syncSelectAllState() {
   $("#calibrate-select-all").prop("checked", $all.length > 0 && $all.length === $checked.length);
 }
 
+function formatClipboardNumber(value) {
+  if (!Number.isFinite(value)) return null;
+  return value.toFixed(3);
+}
+
+function copyTextToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text);
+  }
+
+  return new Promise(function(resolve, reject) {
+    const $tmp = $('<textarea>');
+    $tmp.val(text).css({position: 'fixed', left: '-9999px', top: '-9999px'});
+    $('body').append($tmp);
+    $tmp.trigger('select');
+
+    try {
+      const ok = document.execCommand('copy');
+      $tmp.remove();
+      if (ok) resolve();
+      else reject(new Error('copy failed'));
+    } catch (err) {
+      $tmp.remove();
+      reject(err);
+    }
+  });
+}
+
 function applyMasterReferenceXY(axis) {
   const master = getSelectedReferenceTool(0);
   const $masterEl = $(`#T${master}-${axis}-new`);
@@ -186,15 +214,18 @@ const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, disabled, tc_disa
           <div class="col-6 pt-2 pb-2">
             <div class="row pb-1">
               <span class="fs-6 lh-sm"><small>New X</small></span>
-              <span class="fs-5 lh-sm" id="T${tool_number}-x-new" data-raw="0.000"><small>0.0</small></span>
+              <span class="fs-5 lh-sm" id="T${tool_number}-x-new" data-raw="0.000" title="Click to copy gcode_x_offset" style="cursor:pointer;"><small>0.0</small></span>
             </div>
             <div class="row pb-1">
               <span class="fs-6 lh-sm"><small>New Y</small></span>
-              <span class="fs-5 lh-sm" id="T${tool_number}-y-new" data-raw="0.000"><small>0.0</small></span>
+              <span class="fs-5 lh-sm" id="T${tool_number}-y-new" data-raw="0.000" title="Click to copy gcode_y_offset" style="cursor:pointer;"><small>0.0</small></span>
             </div>
             <div class="row pb-1">
               <span class="fs-6 lh-sm"><small>New Z</small></span>
-              <span class="fs-5 lh-sm" id="T${tool_number}-z-new"><small>0.0</small></span>
+              <span class="fs-5 lh-sm" id="T${tool_number}-z-new" title="Click to copy gcode_z_offset" style="cursor:pointer;"><small>0.000</small></span>
+            </div>
+            <div class="row pt-1">
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-all="${tool_number}">Copy all offsets</button>
             </div>
           </div>
         </div>
@@ -369,6 +400,54 @@ $(document).on("click", "#calibrate-all-btn", function() {
     .fail(err => console.error("Calibration failed:", err));
 });
 
+$(document).on("click", "span[id$='-x-new'], span[id$='-y-new'], span[id$='-z-new']", function() {
+  const id = $(this).attr("id") || "";
+  const match = id.match(/-([xyz])-new$/u);
+  if (!match) return;
+
+  const axis = match[1];
+  const rawText = $(this).attr("data-raw") || $(this).find(":first-child").text();
+  const numericValue = parseFloat(rawText);
+  if (Number.isNaN(numericValue)) return;
+
+  const value = formatClipboardNumber(numericValue);
+  if (value === null) return;
+
+  const payload = `gcode_${axis}_offset: ${value}`;
+  copyTextToClipboard(payload)
+    .then(function() {
+      console.log(`Copied ${payload}`);
+    })
+    .catch(function(err) {
+      console.error('Clipboard copy failed:', err);
+    });
+});
+
+$(document).on("click", "button[data-copy-all]", function() {
+  const tool = $(this).attr("data-copy-all");
+  if (tool === undefined || tool === "") return;
+
+  const xValue = formatClipboardNumber(parseFloat($(`#T${tool}-x-new`).attr("data-raw")));
+  const yValue = formatClipboardNumber(parseFloat($(`#T${tool}-y-new`).attr("data-raw")));
+  const zValue = formatClipboardNumber(parseFloat($(`#T${tool}-z-new`).find(":first-child").text()));
+
+  if (xValue === null || yValue === null || zValue === null) return;
+
+  const payload = [
+    `gcode_x_offset: ${xValue}`,
+    `gcode_y_offset: ${yValue}`,
+    `gcode_z_offset: ${zValue}`
+  ].join("\n");
+
+  copyTextToClipboard(payload)
+    .then(function() {
+      console.log(`Copied all offsets for T${tool}`);
+    })
+    .catch(function(err) {
+      console.error('Clipboard copy failed:', err);
+    });
+});
+
 // Select all
 $(document).on("change", "#calibrate-select-all", function () {
   const checked = $(this).is(":checked");
@@ -414,9 +493,15 @@ function toolChangeURL(tool) {
 
   const master = getSelectedReferenceTool(0);
   if (String(tool) !== String(master)) {
-    const tool_x = parseFloat($(`input[name=T${tool}-x-pos]`).val()) || 0.0;
-    const tool_y = parseFloat($(`input[name=T${tool}-y-pos]`).val()) || 0.0;
-    if (tool_x !== 0.0 && tool_y !== 0.0) {
+    const rawX = $(`input[name=T${tool}-x-pos]`).val();
+    const rawY = $(`input[name=T${tool}-y-pos]`).val();
+    const tool_x = parseFloat(rawX);
+    const tool_y = parseFloat(rawY);
+
+    const hasX = rawX !== "" && rawX !== undefined && !Number.isNaN(tool_x);
+    const hasY = rawY !== "" && rawY !== undefined && !Number.isNaN(tool_y);
+
+    if (hasX && hasY) {
       x_pos = tool_x;
       y_pos = tool_y;
     }
@@ -507,12 +592,14 @@ function updateOffset(tool, axis) {
   const $newEl = $(`#T${tool}-${axis}-new`);
   if (!$newEl.length) return;
 
-  const position = parseFloat($(`input[name=T${tool}-${axis}-pos]`).val()) || 0.0;
+  const rawPosition = $(`input[name=T${tool}-${axis}-pos]`).val();
+  const position = parseFloat(rawPosition);
+  const hasPosition = rawPosition !== "" && rawPosition !== undefined && !Number.isNaN(position);
   const capturedText = $(`#captured-${axis}`).find(":first-child").text();
+  const captured_pos = parseFloat(capturedText);
+  const old_offset = parseFloat($(`#T${tool}-${axis}-offset`).text());
 
-  if (position !== 0.0 && capturedText !== "") {
-    const captured_pos = parseFloat(capturedText);
-    const old_offset = parseFloat($(`#T${tool}-${axis}-offset`).text());
+  if (hasPosition && capturedText !== "" && !Number.isNaN(captured_pos) && !Number.isNaN(old_offset)) {
 
     let new_offset = (captured_pos - old_offset) - position;
 
@@ -536,19 +623,34 @@ function updateOffset(tool, axis) {
 // --------------------------
 function updateTools(tool_numbers, tool_number_active) {
   const master = getSelectedReferenceTool(0);
+  const activeTool = parseInt(tool_number_active, 10);
 
   // Capture button enabled only if master tool is active
   const $captureBtn = $("#capture-pos");
   if ($captureBtn.length) {
-    if (parseInt(tool_number_active, 10) !== parseInt(master, 10)) {
+    if (activeTool !== parseInt(master, 10)) {
       $captureBtn.addClass("disabled").prop("disabled", true);
     } else {
       $captureBtn.removeClass("disabled").prop("disabled", false);
     }
   }
 
-  // Refresh XY display
+  // Keep tool row controls synced with currently loaded tool.
+  // Only the active tool may fetch/write XY values.
   (tool_numbers || []).forEach((tool_no) => {
+    const isActive = parseInt(tool_no, 10) === activeTool;
+
+    $(`#T${tool_no}-fetch-x, #T${tool_no}-fetch-y`)
+      .toggleClass("disabled", !isActive)
+      .prop("disabled", !isActive);
+
+    $(`input[name=T${tool_no}-x-pos], input[name=T${tool_no}-y-pos]`)
+      .prop("disabled", !isActive);
+
+    // Active tool cannot be selected again.
+    const $tcBtn = $(`button#toolchange[data-tool=${tool_no}]`);
+    $tcBtn.toggleClass("disabled", isActive).prop("disabled", isActive);
+
     updateOffset(tool_no, "x");
     updateOffset(tool_no, "y");
   });
