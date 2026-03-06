@@ -46,7 +46,9 @@ function syncSelectAllState() {
 
 function formatClipboardNumber(value) {
   if (!Number.isFinite(value)) return null;
-  return value.toFixed(3);
+  const fixed = value.toFixed(3);
+  const trimmed = fixed.replace(/(\.\d*?[1-9])0+$/u, "$1");
+  return trimmed.replace(/\.0+$/u, ".0");
 }
 
 function copyTextToClipboard(text) {
@@ -70,20 +72,6 @@ function copyTextToClipboard(text) {
       reject(err);
     }
   });
-}
-
-function readNewOffsetValue(tool, axis) {
-  const $el = $(`#T${tool}-${axis}-new`);
-  if (!$el.length) return null;
-
-  const rawAttr = $el.attr("data-raw");
-  const rawText = (rawAttr !== undefined && rawAttr !== "")
-    ? rawAttr
-    : $el.find(":first-child").text();
-
-  const numeric = parseFloat(rawText);
-  if (Number.isNaN(numeric)) return null;
-  return formatClipboardNumber(numeric);
 }
 
 function applyMasterReferenceXY(axis) {
@@ -228,15 +216,15 @@ const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, disabled, tc_disa
           <div class="col-6 pt-2 pb-2">
             <div class="row pb-1">
               <span class="fs-6 lh-sm"><small>New X</small></span>
-              <span class="fs-5 lh-sm" id="T${tool_number}-x-new" data-raw="0.000" title="Click to copy gcode_x_offset" style="cursor:pointer;"><small>0.000</small></span>
+              <span class="fs-5 lh-sm" id="T${tool_number}-x-new" data-raw="0.000" title="Click to copy gcode_x_offset" style="cursor:pointer;"><small>0.0</small></span>
             </div>
             <div class="row pb-1">
               <span class="fs-6 lh-sm"><small>New Y</small></span>
-              <span class="fs-5 lh-sm" id="T${tool_number}-y-new" data-raw="0.000" title="Click to copy gcode_y_offset" style="cursor:pointer;"><small>0.000</small></span>
+              <span class="fs-5 lh-sm" id="T${tool_number}-y-new" data-raw="0.000" title="Click to copy gcode_y_offset" style="cursor:pointer;"><small>0.0</small></span>
             </div>
             <div class="row pb-1">
               <span class="fs-6 lh-sm"><small>New Z</small></span>
-              <span class="fs-5 lh-sm" id="T${tool_number}-z-new" data-raw="0.000" title="Click to copy gcode_z_offset" style="cursor:pointer;"><small>0.000</small></span>
+              <span class="fs-5 lh-sm" id="T${tool_number}-z-new" title="Click to copy gcode_z_offset" style="cursor:pointer;"><small>0.000</small></span>
             </div>
             <div class="row pt-1">
               <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-all="${tool_number}">Copy all offsets</button>
@@ -418,48 +406,23 @@ $(document).on("click", "#calibrate-all-btn", function() {
     .fail(err => console.error("Calibration failed:", err));
 });
 
-$(document).on("click", "span[id$='-x-new'], span[id$='-y-new'], span[id$='-z-new']", function(event) {
-  const $offsetEl = $(event.target).closest("span[id$='-x-new'], span[id$='-y-new'], span[id$='-z-new']");
-  if (!$offsetEl.length) return;
-
-  const id = $offsetEl.attr("id") || "";
-  const match = id.match(/^T(\d+)-([xyz])-new$/u);
+$(document).on("click", "span[id$='-x-new'], span[id$='-y-new']", function() {
+  const id = $(this).attr("id") || "";
+  const match = id.match(/-([xy])-new$/u);
   if (!match) return;
 
-  const tool = match[1];
-  const axis = match[2];
-  const value = readNewOffsetValue(tool, axis);
+  const axis = match[1];
+  const rawText = $(this).attr("data-raw") || $(this).find(":first-child").text();
+  const numericValue = parseFloat(rawText);
+  if (Number.isNaN(numericValue)) return;
+
+  const value = formatClipboardNumber(numericValue);
   if (value === null) return;
 
   const payload = `gcode_${axis}_offset: ${value}`;
   copyTextToClipboard(payload)
     .then(function() {
       console.log(`Copied ${payload}`);
-    })
-    .catch(function(err) {
-      console.error('Clipboard copy failed:', err);
-    });
-});
-
-$(document).on("click", "button[data-copy-all]", function() {
-  const tool = $(this).attr("data-copy-all");
-  if (tool === undefined || tool === "") return;
-
-  const xValue = readNewOffsetValue(tool, "x");
-  const yValue = readNewOffsetValue(tool, "y");
-  const zValue = readNewOffsetValue(tool, "z");
-
-  if (xValue === null || yValue === null || zValue === null) return;
-
-  const payload = [
-    `gcode_x_offset: ${xValue}`,
-    `gcode_y_offset: ${yValue}`,
-    `gcode_z_offset: ${zValue}`
-  ].join("\n");
-
-  copyTextToClipboard(payload)
-    .then(function() {
-      console.log(`Copied all offsets for T${tool}`);
     })
     .catch(function(err) {
       console.error('Clipboard copy failed:', err);
