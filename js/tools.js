@@ -269,7 +269,11 @@ function updateProbeResults(tool, probeResults) {
   if (!probeResults || !probeResults[tool]) return;
   const r = probeResults[tool];
   if (typeof r.z_trigger === "number") $(`#T${tool}-z-trigger small`).text(r.z_trigger.toFixed(3));
-  if (typeof r.z_offset === "number")  $(`#T${tool}-z-new small`).text(r.z_offset.toFixed(3));
+  if (typeof r.z_offset === "number") {
+    const zTxt = r.z_offset.toFixed(3);
+    $(`#T${tool}-z-new`).attr("data-raw", zTxt);
+    $(`#T${tool}-z-new small`).text(zTxt);
+  }
 }
 
 function updateAllProbeResults() {
