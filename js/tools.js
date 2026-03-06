@@ -224,7 +224,10 @@ const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, disabled, tc_disa
             </div>
             <div class="row pb-1">
               <span class="fs-6 lh-sm"><small>New Z</small></span>
-              <span class="fs-5 lh-sm" id="T${tool_number}-z-new"><small>0.0</small></span>
+              <span class="fs-5 lh-sm" id="T${tool_number}-z-new" title="Click to copy gcode_z_offset" style="cursor:pointer;"><small>0.000</small></span>
+            </div>
+            <div class="row pt-1">
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-all="${tool_number}">Copy all offsets</button>
             </div>
           </div>
         </div>
