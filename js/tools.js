@@ -6,9 +6,14 @@ let offsetMasterTool = null;
 let _probeInterval = null;
 
 let _offsetPresent = false;
-let _offsetZCalcDefault = null;
-let _uiZCalcSelection = "config";
+let _offsetZCalcDefault = null; // "median" | "average" | "trimmed" | null
 
+// Remember UI dropdown selection across rerenders
+let _uiZCalcSelection = "config"; // "config" | "median" | "average" | "trimmed"
+
+// --------------------------
+// Helpers
+// --------------------------
 function computeDefaultRef(toolNumbers) {
   const sorted = [...toolNumbers].sort((a, b) => a - b);
   if (offsetMasterTool !== null && sorted.includes(offsetMasterTool)) return offsetMasterTool;

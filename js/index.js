@@ -107,10 +107,10 @@ function ComandsUrl(axis, value) {
         bounce = value - 0.5;
         move   =  0.5;
     }
-
-    $.each(bouncesComands, function(k, comand) {
-        if (comand === '-bounce-')
-            script += 'G0 ' + axis + bounce.toFixed(2) + ' F500\nG0 ' + axis + move.toFixed(2) + ' F500\n';
+    
+    $.each(bouncesComands, function(k, comand){
+        if(comand === '-bounce-')
+            url += 'G0 '+axis+bounce+ ' F500%0AG0 '+axis+move+' F500%0A';
         else
             script += comand + '\n';
     });
@@ -393,45 +393,71 @@ function initializePositionBars() {
         const $row = $('<div class="row pb-1"></div>');
         const $bg  = $('<div class="btn-group btn-group-sm ps-5 pe-5" role="group"></div>');
 
-        const negVals = axis !== "Z" ? [-50, -10, -5, -1]   : [-25, -10, -1, -0.1];
-        const posVals = axis !== "Z" ? [1, 5, 10, 50]        : [0.1, 1, 10, 25];
-
-        negVals.forEach(v => {
-            $('<button>', { type:"button", class:"btn btn-secondary border",
-                "data-url": bounceMove(axis, v), text: v.toFixed(2) }).appendTo($bg);
-        });
-        $('<button>', { type:"button", class:"btn btn-dark border border-dark",
-            "data-url": printerUrl(printerIp, `/printer/gcode/script?script=${encodeURIComponent('G28 ' + axis)}`),
-            id: `home-course-${axis.toLowerCase()}`, text: axis }).appendTo($bg);
-        posVals.forEach(v => {
-            $('<button>', { type:"button", class:"btn btn-secondary border",
-                "data-url": bounceMove(axis, v), text: `+${v.toFixed(2)}` }).appendTo($bg);
+        const values = axis !== "Z" ? [-50, -10, -5, -1] : [-25, -10, -1, -.1];
+        values.forEach(value => {
+            $('<button>', {
+                type: "button",
+                class: "btn btn-secondary border",
+                "data-url": bounceMove(axis, value),
+                text: value.toFixed(2)
+            }).appendTo($btnGroup);
         });
 
-        $('<div class="btn-toolbar justify-content-center" role="toolbar"></div>').append($bg).appendTo($row);
-        $containerBig.append($row);
+        $('<button>', {
+            type: "button",
+            class: "btn btn-dark border border-dark",
+            "data-url": printerUrl(printerIp, `/printer/gcode/script?script=G28${axis}`),
+            id: `home-fine-${axis.toLowerCase()}`,
+            text: axis
+        }).appendTo($btnGroup);
+
+        const reverseValues = axis !== "Z" ? [50, 10, 5, 1].reverse() : [25, 10, 1, .1].reverse();
+        reverseValues.forEach(value => {
+            $('<button>', {
+                type: "button",
+                class: "btn btn-secondary border",
+                "data-url": bounceMove(axis, value),
+                text: `+${value.toFixed(2)}`
+            }).appendTo($btnGroup);
+        });
+
+        $toolbar.append($btnGroup);
+        $row.append($toolbar);
+        $containerBigPos.append($row);
     });
 }
 
 // Button click handlers
 $(document).on("click", "button", function() {
     if ($(this).data("url")) {
-        $.get($(this).data("url"));
-    } else if ($(this).data("axis")) {
-        const tool     = $(this).data("tool");
-        const axis     = String($(this).data("axis")).toLowerCase();
-        const position = parseFloat($("#pos-" + axis).text());
-        if (!Number.isNaN(position)) $("input[name=T" + tool + "-" + axis + "-pos]").val(position.toFixed(3));
+        const url = $(this).data("url");
+        $.get(url, function(){
+            // TODO check if it worked
+        });
+    } else if ($(this).data("axis")){
+        const tool = $(this).data("tool");
+        const axis = String($(this).data("axis")).toLowerCase();
+        const position = parseFloat($("#pos-"+axis).text());
+
+        if (!Number.isNaN(position)) {
+            $("input[name=T"+tool+"-"+axis+"-pos]").val(position.toFixed(3));
+        }
+
+        // Clicking X/Y should always recompute the matching axis offset.
         updateOffset(tool, axis);
     } else if ($(this).is("#capture-pos")) {
         $("#captured-x").find(">:first-child").text(parseFloat($("#pos-x").text()).toFixed(3));
         $("#captured-y").find(">:first-child").text(parseFloat($("#pos-y").text()).toFixed(3));
         $("#captured-z").find(">:first-child").text(parseFloat($("#pos-z").text()).toFixed(3));
     } else if ($(this).is("#toolchange")) {
-        $.get(toolChangeURL($(this).data("tool")));
+        const url = toolChangeURL($(this).data("tool"));
+        $.get(url, function(){});
     }
 });
 
+// Input change handlers
 $(document).on("change", "input[type=number]", function() {
-    updateOffset($(this).data("tool"), $(this).data("axis"));
+    const tool = $(this).data("tool");
+    const axis = $(this).data("axis");
+    updateOffset(tool, axis);
 });
