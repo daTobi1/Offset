@@ -1,7 +1,6 @@
 // Global variables and utility functions
 let printerIp = '';
 let WebcamPath = '/webcam?action=stream';
-let path = '/webcam?action=stream';
 let updateInterval = null;
 
 function printerUrl(ip, endpoint) {
@@ -139,7 +138,7 @@ function ComandsUrl(axis, value) {
     }
     
     $.each(bouncesComands, function(k, comand){
-        if(comand == '-bounce-')
+        if(comand === '-bounce-')
             url += 'G0 '+axis+bounce+ ' F500%0AG0 '+axis+move+' F500%0A';
         else
             url += comand +"%0A";
@@ -487,7 +486,6 @@ $(document).ready(function() {
         // Reset global variables
         printerIp = '';
         WebcamPath = '/webcam?action=stream';
-        path = '/webcam?action=stream';
 
         // Enable IP input
         $('#printerIp').prop('disabled', false);
@@ -580,7 +578,7 @@ function initializePositionBars() {
         const $toolbar = $('<div class="btn-toolbar justify-content-center" role="toolbar" aria-label="Movement Toolbar"></div>');
         const $btnGroup = $('<div class="btn-group btn-group-sm ps-5 pe-5" role="group"></div>');
 
-        const values = axis != "Z" ? [-50, -10, -5, -1] : [-25, -10, -1, -.1];
+        const values = axis !== "Z" ? [-50, -10, -5, -1] : [-25, -10, -1, -.1];
         values.forEach(value => {
             $('<button>', {
                 type: "button",
@@ -598,7 +596,7 @@ function initializePositionBars() {
             text: axis
         }).appendTo($btnGroup);
 
-        const reverseValues = axis != "Z" ? [50, 10, 5, 1].reverse() : [25, 10, 1, .1].reverse();
+        const reverseValues = axis !== "Z" ? [50, 10, 5, 1].reverse() : [25, 10, 1, .1].reverse();
         reverseValues.forEach(value => {
             $('<button>', {
                 type: "button",
@@ -618,7 +616,7 @@ function initializePositionBars() {
 $(document).on("click", "button", function(e) {
     if ($(this).data("url")) {
         const url = $(this).data("url");
-        $.get(url, function(data){
+        $.get(url, function(){
             // TODO check if it worked
         });
     } else if ($(this).data("axis")){
@@ -642,12 +640,12 @@ $(document).on("click", "button", function(e) {
         $("#captured-z").find(">:first-child").text(z_pos);
     } else if ($(this).is("#toolchange")) {
         const url = toolChangeURL($(this).data("tool"));
-        $.get(url, function(data){});
+        $.get(url, function(){});
     }
 });
 
 // Input change handlers
-$(document).on("change", "input[type=number]", function(e) {
+$(document).on("change", "input[type=number]", function() {
     const tool = $(this).data("tool");
     const axis = $(this).data("axis");
     updateOffset(tool, axis);
