@@ -62,7 +62,7 @@ function applyMasterReferenceXY(axis) {
 // --------------------------
 // Templates
 // --------------------------
-const masterToolItem = ({tool_number, disabled, tc_disabled}) => `
+const masterToolItem = ({tool_number, cx_offset, cy_offset, cz_offset, disabled, tc_disabled}) => `
 <li class="list-group-item bg-body-tertiary p-2">
   <div class="container">
     <div class="row">
@@ -116,6 +116,38 @@ const masterToolItem = ({tool_number, disabled, tc_disabled}) => `
             <div class="col-6"><small>Z-Trigger:</small></div>
             <div class="col-6 text-end"><span id="T${tool_number}-z-trigger"><small>-</small></span></div>
           </div>
+
+          <hr class="my-2"/>
+
+          <div class="mt-1">
+            <small class="text-secondary d-block mb-1">Copy Offsets</small>
+            <div class="d-grid gap-1">
+              <button type="button"
+                      class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
+                      data-copy-mode="x"
+                      data-gcode-x-offset="${cx_offset}"
+                      data-gcode-y-offset="${cy_offset}"
+                      data-gcode-z-offset="${cz_offset}">Copy X Offset</button>
+              <button type="button"
+                      class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
+                      data-copy-mode="y"
+                      data-gcode-x-offset="${cx_offset}"
+                      data-gcode-y-offset="${cy_offset}"
+                      data-gcode-z-offset="${cz_offset}">Copy Y Offset</button>
+              <button type="button"
+                      class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
+                      data-copy-mode="z"
+                      data-gcode-x-offset="${cx_offset}"
+                      data-gcode-y-offset="${cy_offset}"
+                      data-gcode-z-offset="${cz_offset}">Copy Z Offset</button>
+              <button type="button"
+                      class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
+                      data-copy-mode="all"
+                      data-gcode-x-offset="${cx_offset}"
+                      data-gcode-y-offset="${cy_offset}"
+                      data-gcode-z-offset="${cz_offset}">Copy All Offsets</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -123,7 +155,7 @@ const masterToolItem = ({tool_number, disabled, tc_disabled}) => `
 </li>
 `;
 
-const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, disabled, tc_disabled}) => `
+const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, cz_offset, disabled, tc_disabled}) => `
 <li class="list-group-item bg-body-tertiary p-2">
   <div class="container">
     <div class="row">
@@ -196,6 +228,38 @@ const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, disabled, tc_disa
               <span class="fs-6 lh-sm"><small>New Z</small></span>
               <span class="fs-5 lh-sm" id="T${tool_number}-z-new"><small>0.0</small></span>
             </div>
+
+            <div class="row mt-2">
+              <div class="col-12">
+                <small class="text-secondary d-block mb-1">Copy Offsets</small>
+                <div class="d-grid gap-1">
+                  <button type="button"
+                          class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
+                          data-copy-mode="x"
+                          data-gcode-x-offset="${cx_offset}"
+                          data-gcode-y-offset="${cy_offset}"
+                          data-gcode-z-offset="${cz_offset}">Copy X Offset</button>
+                  <button type="button"
+                          class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
+                          data-copy-mode="y"
+                          data-gcode-x-offset="${cx_offset}"
+                          data-gcode-y-offset="${cy_offset}"
+                          data-gcode-z-offset="${cz_offset}">Copy Y Offset</button>
+                  <button type="button"
+                          class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
+                          data-copy-mode="z"
+                          data-gcode-x-offset="${cx_offset}"
+                          data-gcode-y-offset="${cy_offset}"
+                          data-gcode-z-offset="${cz_offset}">Copy Z Offset</button>
+                  <button type="button"
+                          class="btn btn-outline-light btn-sm w-100 copy-offset-btn"
+                          data-copy-mode="all"
+                          data-gcode-x-offset="${cx_offset}"
+                          data-gcode-y-offset="${cy_offset}"
+                          data-gcode-z-offset="${cz_offset}">Copy All Offsets</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -251,6 +315,40 @@ function startProbeResultsUpdatesOnce() {
   if (_probeInterval) return;
   _probeInterval = setInterval(updateAllProbeResults, 2000);
 }
+
+function normalizeOffsetValue(value) {
+  const parsed = parseFloat(value);
+  if (Number.isNaN(parsed)) return "0.000";
+  return parsed.toFixed(3);
+}
+
+function buildOffsetCopyText(xOffset, yOffset, zOffset) {
+  return [
+    `gcode_x_offset: ${normalizeOffsetValue(xOffset)}`,
+    `gcode_y_offset: ${normalizeOffsetValue(yOffset)}`,
+    `gcode_z_offset: ${normalizeOffsetValue(zOffset)}`
+  ].join("\n");
+}
+
+function buildSingleOffsetCopyText(axis, value) {
+  return `gcode_${axis}_offset: ${normalizeOffsetValue(value)}`;
+}
+
+$(document).on("click", ".copy-offset-btn", function() {
+  const mode = String($(this).data("copy-mode") || "all").toLowerCase();
+  const x = $(this).data("gcode-x-offset");
+  const y = $(this).data("gcode-y-offset");
+  const z = $(this).data("gcode-z-offset");
+
+  let text = buildOffsetCopyText(x, y, z);
+  if (mode === "x") text = buildSingleOffsetCopyText("x", x);
+  if (mode === "y") text = buildSingleOffsetCopyText("y", y);
+  if (mode === "z") text = buildSingleOffsetCopyText("z", z);
+
+  if (navigator?.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  }
+});
 
 // --------------------------
 // Calibration UI
@@ -464,14 +562,15 @@ function getTools() {
             const toolObj = toolData.result.status[tool_names[i]];
             const cx = toolObj.gcode_x_offset.toFixed(3);
             const cy = toolObj.gcode_y_offset.toFixed(3);
+            const cz = normalizeOffsetValue(toolObj.gcode_z_offset);
 
             const disabled = tool_number !== active_tool ? "disabled" : "";
             const tc_disabled = tool_number === active_tool ? "disabled" : "";
 
             if (tool_number === master) {
-              $("#tool-list").append(masterToolItem({tool_number, disabled, tc_disabled}));
+              $("#tool-list").append(masterToolItem({tool_number, cx_offset: cx, cy_offset: cy, cz_offset: cz, disabled, tc_disabled}));
             } else {
-              $("#tool-list").append(nonMasterToolItem({tool_number, cx_offset: cx, cy_offset: cy, disabled, tc_disabled}));
+              $("#tool-list").append(nonMasterToolItem({tool_number, cx_offset: cx, cy_offset: cy, cz_offset: cz, disabled, tc_disabled}));
             }
           });
 
@@ -536,16 +635,34 @@ function updateOffset(tool, axis) {
 // --------------------------
 function updateTools(tool_numbers, tool_number_active) {
   const master = getSelectedReferenceTool(0);
+  const activeTool = parseInt(tool_number_active, 10);
 
   // Capture button enabled only if master tool is active
   const $captureBtn = $("#capture-pos");
   if ($captureBtn.length) {
-    if (parseInt(tool_number_active, 10) !== parseInt(master, 10)) {
+    if (activeTool !== parseInt(master, 10)) {
       $captureBtn.addClass("disabled").prop("disabled", true);
     } else {
       $captureBtn.removeClass("disabled").prop("disabled", false);
     }
   }
+
+  // Keep per-tool controls in sync with the currently loaded tool.
+  (tool_numbers || []).forEach((tool_no) => {
+    const isActive = parseInt(tool_no, 10) === activeTool;
+
+    $(`#T${tool_no}-fetch-x, #T${tool_no}-fetch-y`)
+      .toggleClass("disabled", !isActive)
+      .prop("disabled", !isActive);
+
+    $(`input[name=T${tool_no}-x-pos], input[name=T${tool_no}-y-pos]`)
+      .prop("disabled", !isActive);
+
+    const $toolChangeBtn = $(`button#toolchange[data-tool='${tool_no}']`);
+    $toolChangeBtn
+      .toggleClass("disabled", isActive)
+      .prop("disabled", isActive);
+  });
 
   // Refresh XY display
   (tool_numbers || []).forEach((tool_no) => {
