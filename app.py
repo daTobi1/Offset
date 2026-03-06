@@ -1,4 +1,3 @@
-import os
 from flask.app import Flask
 from flask.helpers import send_from_directory
 
