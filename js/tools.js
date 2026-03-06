@@ -526,6 +526,9 @@ function getTools() {
             }
           });
 
+          // Safety fallback: upgrade any old single copy button markup to the new 4-button layout.
+          upgradeLegacyCopyButtons();
+
           // Fetch offset status for cfg method label + enable button
           fetchOffsetStatus().then(function(){
             $("#tool-list").append(calibrateButton(tool_numbers, _offsetPresent));
