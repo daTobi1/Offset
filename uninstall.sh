@@ -65,6 +65,9 @@ echo "Removing symlink from klipper extras..."
 if [ -L "${KLIPPER_EXTRAS}" ]; then
     sudo rm -f "${KLIPPER_EXTRAS}"
 fi
+if [ -L "$HOME/klipper/klippy/extras/axiscope.py" ]; then
+    sudo rm -f "$HOME/klipper/klippy/extras/axiscope.py"
+fi
 
 # Restart services
 echo "Restarting services..."

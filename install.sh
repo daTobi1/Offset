@@ -84,6 +84,7 @@ append_if_missing() {
 append_if_missing "" "${GITIGNORE_FILE}"
 append_if_missing "# Python venv (must never be tracked)" "${GITIGNORE_FILE}"
 append_if_missing "offset-env/" "${GITIGNORE_FILE}"
+append_if_missing "axiscope-env/" "${GITIGNORE_FILE}"
 append_if_missing ".venv/" "${GITIGNORE_FILE}"
 append_if_missing "" "${GITIGNORE_FILE}"
 append_if_missing "# Python caches" "${GITIGNORE_FILE}"

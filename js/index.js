@@ -149,6 +149,20 @@ function ComandsUrl(axis, value) {
 
 // Event handlers for printer modal
 // Macro management
+function getStoredMacros() {
+    const offsetMacros = JSON.parse(localStorage.getItem('offset_macros') || '[]');
+    if (Array.isArray(offsetMacros) && offsetMacros.length) return offsetMacros;
+
+    // Backward-compat: migrate legacy key once.
+    const legacyMacros = JSON.parse(localStorage.getItem('axiscope_macros') || '[]');
+    if (Array.isArray(legacyMacros) && legacyMacros.length) {
+        localStorage.setItem('offset_macros', JSON.stringify(legacyMacros));
+        localStorage.removeItem('axiscope_macros');
+        return legacyMacros;
+    }
+    return [];
+}
+
 function saveMacro() {
     const name = $('#macro-name').val().trim();
     const command = $('#macro-command').val().trim();
