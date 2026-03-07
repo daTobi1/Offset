@@ -1,4 +1,4 @@
-/* =========================================================
+﻿/* =========================================================
    Offset tools.js (Global Master + Config-default Z calc)
    - Fixes: updateTools is defined (used by index.js)
    - Z calc dropdown:
@@ -22,6 +22,47 @@ let _uiZCalcSelection = "config"; // "config" | "median" | "average" | "trimmed"
 // --------------------------
 function printerUrl(ip, path) { return `http://${ip}${path}`; }
 
+const OffsetDebug = (() => {
+  const key = "offset_debug";
+  let enabled = false;
+
+  function init() {
+    try {
+      const params = new URLSearchParams(window.location.search || "");
+      enabled = params.get("debug") === "1" || params.get("offset_debug") === "1" || localStorage.getItem(key) === "1";
+    } catch (_) {
+      enabled = false;
+    }
+    if (enabled) console.log("[Offset] Debug enabled");
+  }
+
+  function set(value) {
+    enabled = !!value;
+    try {
+      localStorage.setItem(key, enabled ? "1" : "0");
+    } catch (_) {}
+    if (enabled) console.log("[Offset] Debug enabled");
+  }
+
+  function log(...args) { if (enabled) console.log("[Offset]", ...args); }
+  function error(...args) { if (enabled) console.error("[Offset]", ...args); }
+
+  return {
+    init,
+    set,
+    log,
+    error,
+    get enabled() { return enabled; }
+  };
+})();
+
+window.OffsetDebug = {
+  enable: () => OffsetDebug.set(true),
+  disable: () => OffsetDebug.set(false),
+  status: () => OffsetDebug.enabled
+};
+
+OffsetDebug.init();
 function computeDefaultRef(toolNumbers) {
   const sorted = [...toolNumbers].sort((a, b) => a - b);
   if (offsetMasterTool !== null && sorted.includes(offsetMasterTool)) return offsetMasterTool;
@@ -51,8 +92,10 @@ function formatClipboardNumber(value) {
   return trimmed.replace(/\.0+$/u, ".0");
 }
 
-function copyTextToClipboard(text) {
+function copyTextToClipboard(text, context = "") {
+  OffsetDebug.log("copyTextToClipboard start", {context, text});
   if (navigator.clipboard && navigator.clipboard.writeText) {
+    OffsetDebug.log("Using navigator.clipboard.writeText");
     return navigator.clipboard.writeText(text);
   }
 
@@ -60,11 +103,18 @@ function copyTextToClipboard(text) {
     const $tmp = $('<textarea>');
     $tmp.val(text).css({position: 'fixed', left: '-9999px', top: '-9999px'});
     $('body').append($tmp);
-    $tmp.trigger('select');
+    const el = $tmp.get(0);
+    if (el && el.select) {
+      el.select();
+      if (el.setSelectionRange) el.setSelectionRange(0, el.value.length);
+    } else {
+      $tmp.trigger('select');
+    }
 
     try {
       const ok = document.execCommand('copy');
       $tmp.remove();
+      OffsetDebug.log("execCommand copy result", ok);
       if (ok) resolve();
       else reject(new Error('copy failed'));
     } catch (err) {
@@ -406,29 +456,75 @@ $(document).on("click", "#calibrate-all-btn", function() {
     .fail(err => console.error("Calibration failed:", err));
 });
 
-$(document).on("click", "span[id$='-x-new'], span[id$='-y-new']", function() {
+$(document).on("click", "span[id$='-x-new'], span[id$='-y-new'], span[id$='-z-new']", function() {
   const id = $(this).attr("id") || "";
-  const match = id.match(/-([xy])-new$/u);
+  const match = id.match(/-([xyz])-new$/u);
   if (!match) return;
 
   const axis = match[1];
   const rawText = $(this).attr("data-raw") || $(this).find(":first-child").text();
   const numericValue = parseFloat(rawText);
-  if (Number.isNaN(numericValue)) return;
+  if (Number.isNaN(numericValue)) {
+    OffsetDebug.error("Copy failed: NaN value", {id, rawText});
+    return;
+  }
 
   const value = formatClipboardNumber(numericValue);
-  if (value === null) return;
+  if (value === null) {
+    OffsetDebug.error("Copy failed: formatClipboardNumber returned null", {id, numericValue});
+    return;
+  }
 
   const payload = `gcode_${axis}_offset: ${value}`;
-  copyTextToClipboard(payload)
+  copyTextToClipboard(payload, `copy ${axis}`)
     .then(function() {
       console.log(`Copied ${payload}`);
+      OffsetDebug.log("Copied single offset", {axis, payload});
     })
     .catch(function(err) {
       console.error('Clipboard copy failed:', err);
+      OffsetDebug.error("Clipboard copy failed", err);
     });
 });
 
+$(document).on("click", "button[data-copy-all]", function() {
+  const tool = $(this).attr("data-copy-all");
+  const $x = $("#T" + tool + "-x-new");
+  const $y = $("#T" + tool + "-y-new");
+  const $z = $("#T" + tool + "-z-new");
+
+  if (!$x.length || !$y.length || !$z.length) {
+    OffsetDebug.error("Copy all failed: missing elements", {tool, hasX: $x.length, hasY: $y.length, hasZ: $z.length});
+    return;
+  }
+
+  const rawX = $x.attr("data-raw") || $x.find(":first-child").text();
+  const rawY = $y.attr("data-raw") || $y.find(":first-child").text();
+  const rawZ = $z.attr("data-raw") || $z.find(":first-child").text();
+
+  const xVal = formatClipboardNumber(parseFloat(rawX));
+  const yVal = formatClipboardNumber(parseFloat(rawY));
+  const zVal = formatClipboardNumber(parseFloat(rawZ));
+
+  if (xVal === null || yVal === null || zVal === null) {
+    OffsetDebug.error("Copy all failed: invalid values", {tool, rawX, rawY, rawZ});
+    return;
+  }
+
+  const payload = `gcode_x_offset: ${xVal}\n` +
+                  `gcode_y_offset: ${yVal}\n` +
+                  `gcode_z_offset: ${zVal}`;
+
+  copyTextToClipboard(payload, "copy all")
+    .then(function() {
+      console.log(`Copied all offsets for T${tool}`);
+      OffsetDebug.log("Copied all offsets", {tool, payload});
+    })
+    .catch(function(err) {
+      console.error('Clipboard copy failed:', err);
+      OffsetDebug.error("Clipboard copy failed", err);
+    });
+});
 // Select all
 $(document).on("change", "#calibrate-select-all", function () {
   const checked = $(this).is(":checked");
@@ -636,3 +732,4 @@ function updateTools(tool_numbers, tool_number_active) {
     updateOffset(tool_no, "y");
   });
 }
+
