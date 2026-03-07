@@ -87,9 +87,7 @@ function syncSelectAllState() {
 
 function formatClipboardNumber(value) {
   if (!Number.isFinite(value)) return null;
-  const fixed = value.toFixed(3);
-  const trimmed = fixed.replace(/(\.\d*?[1-9])0+$/u, "$1");
-  return trimmed.replace(/\.0+$/u, ".0");
+  return value.toFixed(3);
 }
 
 function copyTextToClipboard(text, context = "") {
@@ -732,4 +730,5 @@ function updateTools(tool_numbers, tool_number_active) {
     updateOffset(tool_no, "y");
   });
 }
+
 
