@@ -1,0 +1,11 @@
+# Python virtual environment
+offset-env/
+.venv/
+
+# Python bytecode cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Generated service file
+offset.service
