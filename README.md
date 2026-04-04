@@ -4,7 +4,7 @@ Professional multi-tool calibration framework for Klipper toolchanger systems.
 
 ---
 
-## 🚀 Core Features
+## Core Features
 
 - Global Master Tool architecture (X/Y/Z reference)
 - Dynamic Capture UI per Master
@@ -15,9 +15,18 @@ Professional multi-tool calibration framework for Klipper toolchanger systems.
 - Backend reference validation
 - Select-All calibration logic (Master protected)
 
+### Web Interface
+
+- **Klipper Console** – Real-time GCode output via WebSocket, shows last 50 messages on connect
+- **Camera Position (CAM POS)** – Configurable X/Y/Z fields, pre-filled with bed center + Z=30, saved to localStorage
+- **Toast Notifications** – Visual feedback for all actions (success/error/warning)
+- **GCode Input** – Send arbitrary GCode commands with console output and error feedback
+- **Camera Controls** – Zoom, contrast, horizontal/vertical flip
+- **Movement Controls** – Fine (0.01–0.5mm) and coarse (1–50mm) bounce moves for X/Y/Z
+
 ---
 
-## 🎯 Master Tool Logic
+## Master Tool Logic
 
 Default behavior:
 
@@ -31,27 +40,35 @@ Master responsibilities:
 
 ---
 
-## 🔬 Z Offset Calculation
+## Z Offset Calculation
 
+```
 z_offset = z_trigger_tool - z_trigger_master
+```
 
 Master always receives:
+```
 z_offset = 0.000
+```
 
 ---
 
-## 📐 XY Offset Calculation
+## XY Offset Calculation
 
+```
 RAW_offset = (captured - current_offset) - typed_position
 DISPLAY_offset = RAW_tool - RAW_master
+```
 
 Master always displays:
+```
 X = 0
 Y = 0
+```
 
 ---
 
-## 📦 Documentation
+## Documentation
 
 See `/docs` folder for:
 
@@ -63,7 +80,8 @@ See `/docs` folder for:
 - Release Notes
 
 ---
-## 📦 Installation
+
+## Installation
 
 Quick installation using curl:
 
@@ -78,7 +96,7 @@ The install script will:
 - Set up the systemd service
 - Configure Moonraker integration
 
-🗑️ Uninstallation
+### Uninstallation
 
 Quick uninstall using curl:
 
@@ -92,9 +110,11 @@ The uninstall script will:
 - Remove the service file
 - Remove the Offset installation directory
 - Remove Moonraker service registration (moonraker.asvc)
-- Remove the [update_manager offset] section from moonraker.conf
+- Remove the `[update_manager offset]` section from moonraker.conf
 - Remove the Klipper extras symlink
 - Restart Moonraker and Klipper
+
+---
 
 ## Configuration
 
@@ -119,7 +139,7 @@ zswitch_x_pos: 31.35
 zswitch_y_pos: -4.61
 
 # Z height at which the switch triggers
-zswitch_z_pos: 3.0             # previously: 1.83
+zswitch_z_pos: 3.0
 
 # -------------------------------------------------
 # Safety / Motion Settings
@@ -139,7 +159,7 @@ z_move_speed: 6
 # Sampling / Accuracy
 # -------------------------------------------------
 # Target number of samples per batch
-samples: 5 #If us trimmed this count must be minimum 5
+samples: 5 # If using trimmed, this count must be minimum 5
 
 # Maximum allowed deviation within a batch (mm)
 samples_tolerance: 0.005
@@ -176,18 +196,15 @@ start_gcode:
   G28
   QUAD_GANTRY_LEVEL
   G28 Z
-  #CLEAN_NOZZLE
 
 before_pickup_gcode:
   M118 Before pickup
 
 after_pickup_gcode:
   M118 After pickup
-  #CLEAN_NOZZLE
 
 finish_gcode:
   M118 Calibration complete
-
 ```
 
 ### Finding the Endstop Position
@@ -198,10 +215,10 @@ To correctly configure the endstop position for Z calibration:
 2. Using the jog controls in your printer interface, carefully position the nozzle directly centered over the endstop pin
 3. Note the current X, Y, and Z positions displayed in your interface
 4. Use these values for `zswitch_x_pos` and `zswitch_y_pos` in your configuration
-5. For `zswitch_z_pos`, add 3mm to your current Z position (If using multiple hotends of varying lengths, add additional clearance as needed.)
+5. For `zswitch_z_pos`, add 3mm to your current Z position (if using multiple hotends of varying lengths, add additional clearance as needed)
 
 Example: If your position readings are X:226.71, Y:-18.46, Z:4.8, then configure:
-```
+```ini
 zswitch_x_pos: 226.71
 zswitch_y_pos: -18.46
 zswitch_z_pos: 7.8  # 4.8 + 3mm clearance
@@ -209,80 +226,61 @@ zswitch_z_pos: 7.8  # 4.8 + 3mm clearance
 
 ### G-code Macro Options
 
-Offset now supports templated G-code macros with full Jinja template support.
+Offset supports templated G-code macros with full Jinja template support.
 
 - **start_gcode**: Executed at the beginning of calibration
 - **before_pickup_gcode**: Executed before each tool change
 - **after_pickup_gcode**: Executed after each tool change
 - **finish_gcode**: Executed after calibration is complete
 
+---
 
+## Project Structure
+
+```
+Offset/
+  app.py              # Flask server (serves web UI on port 3000)
+  index.html          # Main dashboard
+  js/
+    index.js          # Core logic, connection, movement, toast system
+    tools.js          # Tool rendering, offset calculations, calibration
+    gcode.js          # GCode input + Klipper console (WebSocket)
+    camera.js         # Camera controls (zoom, flip, contrast)
+  css/
+    camera.css        # Camera overlay styling
+  klippy/
+    extras/
+      offset.py       # Klipper module for Z calibration
+  install.sh          # Installation script
+  uninstall.sh        # Uninstallation script
+```
+
+---
+
+## Credits & Original Project
 
 Offset is a modified and extended implementation based on the original Offset project by nic335.
 
-This project builds upon the idea and foundation of Offset and extends it with additional features, structural changes, and further development tailored to my personal workflow and experimental improvements.
+This project builds upon the idea and foundation of Offset and extends it with additional features, structural changes, and further development.
 
-🙏 Credits & Original Project
-
-This project is based on the original work:
-
-Offset
-Author: nic335
-Repository: https://github.com/nic335/Offset
-
-All core ideas, the initial concept, and the inspiration originate from the Offset project.
+- **Original Author:** nic335
+- **Original Repository:** https://github.com/nic335/Offset
 
 Huge thanks to nic335 for creating Offset and making it available under the MIT License.
 
-🔎 What This Project Is
+---
 
-Offset is:
-
-A derivative work inspired by Offset
-
-A modified implementation with structural and functional changes
-
-An experimental extension with additional configuration options and workflow adjustments
-
-A personal development branch exploring alternative approaches
-
-Depending on the current development state, internal structure and implementation details may significantly differ from the original project.
-
-📜 License
+## License
 
 This project is released under the MIT License, consistent with the original Offset project.
 
-In accordance with the MIT License:
+The original copyright notice and license are preserved. Attribution to the original author is maintained.
 
-The original copyright notice and license must be preserved.
+See the [LICENSE](LICENSE) file for full details.
 
-This project includes and builds upon work originally created by nic335.
+---
 
-Attribution to the original author is maintained.
-
-See the LICENSE file for full details.
-
-⚠ Disclaimer
+## Disclaimer
 
 This is not the official Offset repository.
-For the original implementation, please visit:
-
-👉 https://github.com/nic335/Offset
-
-If you are looking for the stable upstream version, use the original repository.
-
-🤝 Intent
-
-This repository is created with full respect for the original author and project.
-
-The goal is:
-
-To explore improvements
-
-To experiment with alternative implementations
-
-To potentially contribute ideas back to the original project
-
-To collaborate respectfully within the open-source spirit
-
-If any part of this repository needs clarification regarding attribution or licensing, please open an issue.
+For the original implementation, please visit: https://github.com/nic335/Offset
