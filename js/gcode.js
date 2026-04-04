@@ -1,10 +1,17 @@
 
 function sendGcode() {
-  var url = printerUrl(printerIp, "/printer/gcode/script?script=" + $("#gcode-input").val())
+  var cmd = $("#gcode-input").val();
+  if (!cmd || !cmd.trim()) return;
+  var url = printerUrl(printerIp, "/printer/gcode/script?script=" + encodeURIComponent(cmd));
   $("#gcode-input").val("");
 
-  $.get(url, function(data){
-  });
+  $.get(url)
+    .done(function(){
+      showToast("GCode sent: " + cmd, "success");
+    })
+    .fail(function(jqXHR){
+      showToast("GCode failed: " + extractErrorMessage(jqXHR), "danger");
+    });
 }
 
 $(document).ready(function() {
@@ -12,11 +19,9 @@ $(document).ready(function() {
     sendGcode();
   });
 
-
-  $("#gcode-input").bind("enterKey",function(e){
+  $("#gcode-input").on("enterKey", function(e){
     sendGcode();
   });
-
 
   $("#gcode-input").keyup(function(e){
     if(e.keyCode == 13){

@@ -3,6 +3,7 @@ let printerIp = '';
 let WebcamPath = '/webcam?action=stream';
 let path = '/webcam?action=stream';
 let updateInterval = null;
+let _updateFailCount = 0;
 
 function printerUrl(ip, endpoint) {
     ip = ip.replace(/^https?:\/\//, '');
@@ -14,32 +15,64 @@ function isValidIP(input) {
     if (!input) return false;
 
     input = input.replace(/^https?:\/\//, '');
-    
+
     const urlRegex = /^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9](:[0-9]+)?$/;
     return urlRegex.test(input);
 }
 
+// Toast notification system
+function showToast(message, type) {
+    type = type || "info";
+    var $toast = $('#offset-toast');
+    var $msg = $('#toast-message');
+    $toast.removeClass('text-bg-success text-bg-danger text-bg-warning text-bg-info');
+    $toast.addClass('text-bg-' + type);
+    $msg.text(message);
+    var opts = (type === 'danger') ? { autohide: false } : { delay: 3000 };
+    var bsToast = bootstrap.Toast.getOrCreateInstance($toast[0], opts);
+    bsToast.show();
+}
+
+function extractErrorMessage(jqXHR) {
+    try {
+        var msg = jqXHR.responseJSON && jqXHR.responseJSON.error && jqXHR.responseJSON.error.message;
+        if (msg) return msg;
+    } catch (_) {}
+    return jqXHR.statusText || "Unknown error";
+}
+
 function updatePage() {
-  $.get(printerUrl(printerIp,"/printer/objects/query?gcode_move&toolhead&toolchanger&quad_gantry_level&stepper_enable"), function(data){
-    // console.log(printerUrl)
-    if (data['result']) {
+  $.get(printerUrl(printerIp,"/printer/objects/query?gcode_move&toolhead&toolchanger&quad_gantry_level&stepper_enable"))
+    .done(function(data){
+      if (data['result']) {
+        try {
+          var st = data['result']['status'];
 
-      var positions   = data['result']['status']['gcode_move']['position'];
-      var gcode_pos   = data['result']['status']['gcode_move']['gcode_position'];
-      var homed       = data['result']['status']['toolhead']['homed_axes'] == "xyz";
-      var qgl_done    = data['result']['status']['quad_gantry_level']['applied'];
-      var steppers    = data['result']['status']['stepper_enable']['steppers'];
-      // var initialized = data['result']['status']['toolchanger']['status'] == "ready";
-      var tool_number = data['result']['status']['toolchanger']['tool_number'];
-      var tools       = data['result']['status']['toolchanger']['tool_numbers'];
+          var positions   = st['gcode_move']['position'];
+          var gcode_pos   = st['gcode_move']['gcode_position'];
+          var homed       = st['toolhead']['homed_axes'] == "xyz";
+          var qgl_done    = (st['quad_gantry_level'] && st['quad_gantry_level']['applied']) || false;
+          var steppers    = st['stepper_enable'] ? st['stepper_enable']['steppers'] : {};
+          var tool_number = st['toolchanger']['tool_number'];
+          var tools       = st['toolchanger']['tool_numbers'];
 
-      updatePositions(positions, gcode_pos);
-      updateHoming(homed);
-      updateQGL(qgl_done);
-      updateMotor(checkActiveStepper(steppers));
-      updateTools(tools, tool_number);
-    }
-  });
+          updatePositions(positions, gcode_pos);
+          updateHoming(homed);
+          updateQGL(qgl_done);
+          updateMotor(checkActiveStepper(steppers));
+          updateTools(tools, tool_number);
+          _updateFailCount = 0;
+        } catch (e) {
+          console.error("updatePage parse error:", e);
+        }
+      }
+    })
+    .fail(function(jqXHR){
+      _updateFailCount++;
+      if (_updateFailCount === 3) {
+        showToast("Connection to printer lost", "warning");
+      }
+    });
 }
 
 function updatePositions(positions, gcode_pos){
@@ -401,20 +434,20 @@ $(document).ready(function() {
         // Apply the initial transform
         updateTransform();
         
-        // Initialize button URLs and data attributes
+        // Initialize button URLs and data attributes (use .data() to keep jQuery cache in sync)
         $("#home-all")
-            .attr("data-url", printerUrl(printerIp, '/printer/gcode/script?script=G28'))
-            .attr("data-homed", "false")
+            .data("url", printerUrl(printerIp, '/printer/gcode/script?script=G28'))
+            .data("homed", false)
             .addClass("btn-danger").removeClass("btn-primary");
-            
+
         $("#qgl")
-            .attr("data-url", printerUrl(printerIp, '/printer/gcode/script?script=QUAD_GANTRY_LEVEL'))
-            .attr("data-qgl", "false")
+            .data("url", printerUrl(printerIp, '/printer/gcode/script?script=QUAD_GANTRY_LEVEL'))
+            .data("qgl", false)
             .addClass("btn-danger").removeClass("btn-primary");
-            
+
         $("#disable-motors")
-            .attr("data-url", printerUrl(printerIp, '/printer/gcode/script?script=M84'))
-            .attr("data-motoron", "false")
+            .data("url", printerUrl(printerIp, '/printer/gcode/script?script=M84'))
+            .data("motoron", false)
             .addClass("btn-danger").removeClass("btn-primary");
         
         // Show the camera container
@@ -604,14 +637,15 @@ function initializePositionBars() {
 $(document).on("click", "button", function(e) {
     if ($(this).data("url")) {
         const url = $(this).data("url");
-        $.get(url, function(data){
-            // TODO check if it worked
-        });
+        $.get(url)
+            .fail(function(jqXHR){
+                showToast("Command failed: " + extractErrorMessage(jqXHR), "danger");
+            });
     } else if ($(this).data("axis")){
         const tool = $(this).data("tool");
         const axis = $(this).data("axis");
         const position = $("#pos-"+axis).text();
-        
+
         $("input[name=T"+tool+"-"+axis+"-pos]").val(position);
         updateOffset(tool, axis);
     } else if ($(this).is("#capture-pos")) {
@@ -622,9 +656,23 @@ $(document).on("click", "button", function(e) {
         $("#captured-x").find(">:first-child").text(x_pos);
         $("#captured-y").find(">:first-child").text(y_pos);
         $("#captured-z").find(">:first-child").text(z_pos);
-    } else if ($(this).is("#toolchange")) {
-        const url = toolChangeURL($(this).data("tool"));
-        $.get(url, function(data){});
+        showToast("Position captured: X=" + x_pos + " Y=" + y_pos + " Z=" + z_pos, "success");
+    } else if ($(this).hasClass("toolchange-btn")) {
+        const tool = $(this).data("tool");
+        const $btn = $(this);
+        $btn.prop("disabled", true);
+        showToast("Switching to T" + tool + "...", "info");
+        const url = toolChangeURL(tool);
+        $.get(url)
+            .done(function(){
+                showToast("Switched to T" + tool, "success");
+            })
+            .fail(function(jqXHR){
+                showToast("Tool change failed: " + extractErrorMessage(jqXHR), "danger");
+            })
+            .always(function(){
+                $btn.prop("disabled", false);
+            });
     }
 });
 

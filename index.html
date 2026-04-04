@@ -157,9 +157,9 @@
                         <div class="row">
                         <div class="btn-toolbar justify-content-center" role="toolbar" aria-label="Homing Toolbar">
                             <div class="btn-group btn-group-sm ps-5 pe-5 pb-1" role="group">
-                            <button type="button" class="btn btn-danger border" id="home-all" data-homed="false" data-url="">HOME ALL</button>
-                            <button type="button" class="btn btn-danger border" id="qgl" data-qgl="false" data-url="">QGL</button>
-                            <button type="button" class="btn btn-danger border" id="disable-motors" data-motoron="false" data-url="">DISABLE</button>
+                            <button type="button" class="btn btn-danger border" id="home-all">HOME ALL</button>
+                            <button type="button" class="btn btn-danger border" id="qgl">QGL</button>
+                            <button type="button" class="btn btn-danger border" id="disable-motors">DISABLE</button>
                             </div>
                         </div>
                         </div>
@@ -185,6 +185,15 @@
                 <ul class="list-group" id="tool-list"></ul>
             </div>
         </div>
+    </div>
+    <!-- Toast notifications -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:9999;">
+      <div id="offset-toast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+          <div class="toast-body" id="toast-message"></div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      </div>
     </div>
   </body>
   <footer></footer>

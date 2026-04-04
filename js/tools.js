@@ -20,7 +20,7 @@ let _uiZCalcSelection = "config"; // "config" | "median" | "average" | "trimmed"
 // --------------------------
 // Helpers
 // --------------------------
-function printerUrl(ip, path) { return `http://${ip}${path}`; }
+// printerUrl is defined in index.js (loaded after tools.js)
 
 const OffsetDebug = (() => {
   const key = "offset_debug";
@@ -129,7 +129,7 @@ function applyMasterReferenceXY(axis) {
   const $masterEl = $(`#T${master}-${axis}-new`);
   const masterRaw = parseFloat($masterEl.attr("data-raw")) || 0.0;
 
-  $('button#toolchange').each(function(){
+  $('button.toolchange-btn').each(function(){
     const tool = $(this).data("tool");
     const $el = $(`#T${tool}-${axis}-new`);
     if (!$el.length) return; // master row has no XY new fields
@@ -147,8 +147,8 @@ const masterToolItem = ({tool_number, disabled, tc_disabled}) => `
   <div class="container">
     <div class="row">
       <div class="col-2">
-        <button type="button" class="btn btn-secondary btn-sm w-100 h-100 ${tc_disabled}"
-                id="toolchange" name="T${tool_number}" data-tool="${tool_number}">
+        <button type="button" class="btn btn-secondary btn-sm w-100 h-100 toolchange-btn ${tc_disabled}"
+                name="T${tool_number}" data-tool="${tool_number}">
           <h1>T${tool_number}</h1>
         </button>
       </div>
@@ -209,8 +209,8 @@ const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, disabled, tc_disa
     <div class="row">
 
       <div class="col-2">
-        <button type="button" class="btn btn-secondary btn-sm w-100 h-100 ${tc_disabled}"
-                id="toolchange" name="T${tool_number}" data-tool="${tool_number}">
+        <button type="button" class="btn btn-secondary btn-sm w-100 h-100 toolchange-btn ${tc_disabled}"
+                name="T${tool_number}" data-tool="${tool_number}">
           <h1>T${tool_number}</h1>
         </button>
       </div>
@@ -328,7 +328,7 @@ function updateProbeResults(tool, probeResults) {
 
 function updateAllProbeResults() {
   getProbeResults().then(function(probeResults) {
-    $('button#toolchange').each(function(){
+    $('button.toolchange-btn').each(function(){
       updateProbeResults($(this).data("tool"), probeResults);
     });
   });
@@ -451,9 +451,24 @@ $(document).on("click", "#calibrate-all-btn", function() {
   const zCalcPart = (method !== "config") ? ` Z_CALC=${method}` : "";
   const script = `CALIBRATE_ALL_Z_OFFSETS TOOLS=${selectedTools.join(",")}${zCalcPart} REF=${refTool}`;
 
+  const $btn = $("#calibrate-all-btn");
+  $btn.prop("disabled", true).text("Calibrating...");
+  if (typeof showToast === 'function') showToast("Calibration started...", "info");
+
   $.get(printerUrl(printerIp, `/printer/gcode/script?script=${encodeURIComponent(script)}`))
-    .done(() => console.log("Calibration started:", script))
-    .fail(err => console.error("Calibration failed:", err));
+    .done(() => {
+      console.log("Calibration started:", script);
+      if (typeof showToast === 'function') showToast("Calibration command sent", "success");
+    })
+    .fail(err => {
+      console.error("Calibration failed:", err);
+      var msg = "Calibration failed";
+      try { msg += ": " + err.responseJSON.error.message; } catch(_){}
+      if (typeof showToast === 'function') showToast(msg, "danger");
+    })
+    .always(() => {
+      $btn.prop("disabled", false).text("CALIBRATE Z-OFFSETS");
+    });
 });
 
 $(document).on("click", "span[id$='-x-new'], span[id$='-y-new'], span[id$='-z-new']", function() {
@@ -612,9 +627,9 @@ function getTools() {
 
       const master = computeDefaultRef(tool_numbers);
 
-      // Build query for tool objects
+      // Build query for tool objects (encode names with spaces)
       let queryUrl = "/printer/objects/query?";
-      tool_names.forEach(name => queryUrl += name + "&");
+      tool_names.forEach(name => queryUrl += encodeURIComponent(name) + "&");
       queryUrl = queryUrl.slice(0,-1);
 
       $.get(printerUrl(printerIp, queryUrl))
@@ -658,7 +673,13 @@ function getTools() {
             startProbeResultsUpdatesOnce();
             updateAllProbeResults();
           });
+        })
+        .fail(function(jqXHR){
+          if (typeof showToast === 'function') showToast("Failed to load tool data: " + (jqXHR.statusText || "unknown"), "danger");
         });
+    })
+    .fail(function(jqXHR){
+      if (typeof showToast === 'function') showToast("Failed to load tools: " + (jqXHR.statusText || "unknown"), "danger");
     });
 }
 
@@ -725,7 +746,7 @@ function updateTools(tool_numbers, tool_number_active) {
       .prop("disabled", !isActive);
 
     // Active tool cannot be selected again.
-    const $tcBtn = $(`button#toolchange[data-tool=${tool_no}]`);
+    const $tcBtn = $(`button.toolchange-btn[data-tool=${tool_no}]`);
     $tcBtn.toggleClass("disabled", isActive).prop("disabled", isActive);
 
     updateOffset(tool_no, "x");
