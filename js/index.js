@@ -466,6 +466,9 @@ $(document).ready(function() {
         updatePage();
         getTools();
         updateInterval = setInterval(updatePage, 1000);
+
+        // Start Klipper console
+        if (typeof consoleInit === 'function') consoleInit();
     }
 
     // Camera selection click handler
@@ -502,6 +505,10 @@ $(document).ready(function() {
             clearInterval(updateInterval);
             updateInterval = null;
         }
+
+        // Stop console websocket
+        if (typeof consoleDisconnect === 'function') consoleDisconnect();
+        $('#klipper-console').hide();
 
         // Reset global variables
         printerIp = '';
