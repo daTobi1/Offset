@@ -273,6 +273,22 @@ $(document).ready(function() {
     // Initialize printer modal
     $('#printerModal').modal('show');
 
+    // Load saved camera position from localStorage
+    var savedCam = JSON.parse(localStorage.getItem('offset_cam_pos') || 'null');
+    if (savedCam) {
+        if (savedCam.x != null) $('#cam-pos-x').val(savedCam.x);
+        if (savedCam.y != null) $('#cam-pos-y').val(savedCam.y);
+        if (savedCam.z != null) $('#cam-pos-z').val(savedCam.z);
+    }
+    // Save on change
+    $(document).on('change', '#cam-pos-x, #cam-pos-y, #cam-pos-z', function(){
+        localStorage.setItem('offset_cam_pos', JSON.stringify({
+            x: parseFloat($('#cam-pos-x').val()) || null,
+            y: parseFloat($('#cam-pos-y').val()) || null,
+            z: parseFloat($('#cam-pos-z').val()) || null
+        }));
+    });
+
     // Handle IP input validation
     $('#printerIp').on('input', function() {
         const ip = $(this).val();
@@ -665,25 +681,20 @@ $(document).on("click", "button", function(e) {
         $("#captured-z").find(">:first-child").text(z_pos);
         showToast("Position captured: X=" + x_pos + " Y=" + y_pos + " Z=" + z_pos, "success");
     } else if ($(this).is("#cam-position")) {
-        const $btn = $(this);
+        var camX = parseFloat($("#cam-pos-x").val());
+        var camY = parseFloat($("#cam-pos-y").val());
+        var camZ = parseFloat($("#cam-pos-z").val());
+        if (Number.isNaN(camX) || Number.isNaN(camY) || Number.isNaN(camZ)) {
+            showToast("Please enter Cam X, Y and Z values first", "warning");
+            return;
+        }
+        var $btn = $(this);
         $btn.prop("disabled", true);
-        $.get(printerUrl(printerIp, "/printer/objects/query?toolhead"))
-            .done(function(data) {
-                var th = data.result.status.toolhead;
-                var minX = th.axis_minimum[0], maxX = th.axis_maximum[0];
-                var minY = th.axis_minimum[1], maxY = th.axis_maximum[1];
-                var centerX = ((minX + maxX) / 2).toFixed(1);
-                var centerY = ((minY + maxY) / 2).toFixed(1);
-                var script = "G90\nG0 Z30 F3000\nG0 X" + centerX + " Y" + centerY + " F12000";
-                $.get(printerUrl(printerIp, "/printer/gcode/script?script=" + encodeURIComponent(script)))
-                    .done(function(){ showToast("Moving to bed center X=" + centerX + " Y=" + centerY + " Z=30", "success"); })
-                    .fail(function(jqXHR){ showToast("Move failed: " + extractErrorMessage(jqXHR), "danger"); })
-                    .always(function(){ $btn.prop("disabled", false); });
-            })
-            .fail(function(jqXHR){
-                showToast("Failed to query printer: " + extractErrorMessage(jqXHR), "danger");
-                $btn.prop("disabled", false);
-            });
+        var script = "G90\nG0 Z" + camZ.toFixed(1) + " F3000\nG0 X" + camX.toFixed(1) + " Y" + camY.toFixed(1) + " F12000";
+        $.get(printerUrl(printerIp, "/printer/gcode/script?script=" + encodeURIComponent(script)))
+            .done(function(){ showToast("Moving to cam position X=" + camX + " Y=" + camY + " Z=" + camZ, "success"); })
+            .fail(function(jqXHR){ showToast("Move failed: " + extractErrorMessage(jqXHR), "danger"); })
+            .always(function(){ $btn.prop("disabled", false); });
     } else if ($(this).hasClass("toolchange-btn")) {
         const tool = $(this).data("tool");
         const $btn = $(this);
