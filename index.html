@@ -169,6 +169,13 @@
                         <div id="BigPositionBar"></div>
                     </div>
                 </div>
+                <div id="klipper-console" class="border border-secondary-subtle rounded bg-body-tertiary p-2 mt-3" style="display:none;">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="fs-6">Klipper Console</span>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="console-clear">Clear</button>
+                    </div>
+                    <div id="console-output" style="height:200px; overflow-y:auto; font-family:monospace; font-size:0.75rem; background:#0d1117; color:#c9d1d9; border-radius:6px; padding:8px; white-space:pre-wrap; word-break:break-all;"></div>
+                </div>
             </div>
 
             <div class="col p-3">
@@ -179,12 +186,6 @@
                     </div>
                     <div class="col-3">
                     <button type="button" class="btn btn-dark w-100" id="gcode-send">Send</button>
-                    </div>
-                </div>
-                <div id="klipper-console" class="px-2 pb-2" style="display:none;">
-                    <div id="console-output" style="height:180px; overflow-y:auto; font-family:monospace; font-size:0.75rem; background:#0d1117; color:#c9d1d9; border-radius:6px; padding:8px; white-space:pre-wrap; word-break:break-all;"></div>
-                    <div class="d-flex justify-content-end mt-1">
-                        <button type="button" class="btn btn-outline-secondary btn-sm" id="console-clear">Clear</button>
                     </div>
                 </div>
                 </div>
