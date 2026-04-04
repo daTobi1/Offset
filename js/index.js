@@ -273,14 +273,7 @@ $(document).ready(function() {
     // Initialize printer modal
     $('#printerModal').modal('show');
 
-    // Load saved camera position from localStorage
-    var savedCam = JSON.parse(localStorage.getItem('offset_cam_pos') || 'null');
-    if (savedCam) {
-        if (savedCam.x != null) $('#cam-pos-x').val(savedCam.x);
-        if (savedCam.y != null) $('#cam-pos-y').val(savedCam.y);
-        if (savedCam.z != null) $('#cam-pos-z').val(savedCam.z);
-    }
-    // Save on change
+    // Save cam position on change
     $(document).on('change', '#cam-pos-x, #cam-pos-y, #cam-pos-z', function(){
         localStorage.setItem('offset_cam_pos', JSON.stringify({
             x: parseFloat($('#cam-pos-x').val()) || null,
@@ -466,15 +459,28 @@ $(document).ready(function() {
             .data("motoron", false)
             .addClass("btn-danger").removeClass("btn-primary");
         
+        // Initialize camera position defaults from printer axis limits
+        $.get(printerUrl(printerIp, "/printer/objects/query?toolhead"))
+            .done(function(data) {
+                var th = data.result.status.toolhead;
+                var defX = ((th.axis_minimum[0] + th.axis_maximum[0]) / 2).toFixed(1);
+                var defY = ((th.axis_minimum[1] + th.axis_maximum[1]) / 2).toFixed(1);
+                var defZ = "30";
+                var saved = JSON.parse(localStorage.getItem('offset_cam_pos') || 'null');
+                $('#cam-pos-x').val(saved && saved.x != null ? saved.x : defX);
+                $('#cam-pos-y').val(saved && saved.y != null ? saved.y : defY);
+                $('#cam-pos-z').val(saved && saved.z != null ? saved.z : defZ);
+            });
+
         // Show the camera container
         $('#camContainer').fadeIn();
-        
+
         // Close the modal
         $('#printerModal').modal('hide');
-        
+
         // Clear any existing position bars
         $('#BouncePositionBar, #BigPositionBar').empty();
-        
+
         // Initialize position bars and other UI
         initializePositionBars();
         
