@@ -116,8 +116,17 @@ class Offset:
         return all(v is not None for v in (self.x_pos, self.y_pos, self.z_pos))
 
     def get_status(self, eventtime):
+        # Current tool_probe z_offsets from config/runtime
+        tp_offsets = {}
+        for tn in self.toolchanger.tool_numbers:
+            try:
+                tp = self.printer.lookup_object('tool_probe T%d' % tn)
+                tp_offsets[str(tn)] = tp.probe_offsets.z_offset
+            except Exception:
+                pass
         return {
             'probe_results': self.probe_results,
+            'tool_probe_offsets': tp_offsets,
             'has_cfg_data': self.has_cfg_data,
             'has_switch_pos': self.has_switch_pos(),
             'z_calc_method': self.z_calc_method,
@@ -370,7 +379,8 @@ class Offset:
         "Uses Eddy Tap on T0 as true bed reference, then mechanical Tap "
         "on selected tools. Requires CALIBRATE_ALL_Z_OFFSETS to have been "
         "run first (needs z_offset / gcode_z_offset data). "
-        "TOOLS=0,1,2,3 to select tools (default: all with z_offset data).")
+        "TOOLS=0,1,2,3 to select tools (default: all with z_offset data). "
+        "APPLY=1 (default) sets z_offset at runtime and stages config save.")
 
     def cmd_CALIBRATE_PROBE_OFFSETS(self, gcmd):
         if not self.is_homed():
@@ -381,6 +391,7 @@ class Offset:
             raise gcmd.error(
                 "No Z-switch data. Run CALIBRATE_ALL_Z_OFFSETS first")
 
+        apply_offsets = gcmd.get_int('APPLY', 1)
         samples = gcmd.get_int('SAMPLES', self.probe_offset_samples, minval=1)
         probe_x = gcmd.get_float('PROBE_X', self.probe_offset_x)
         probe_y = gcmd.get_float('PROBE_Y', self.probe_offset_y)
@@ -503,6 +514,22 @@ class Offset:
                 "T%d: Tap bed_z=%.4f  probe_z_offset=%.4f"
                 % (tool_nr, bed_z, probe_z_offset))
 
+            if apply_offsets:
+                try:
+                    tp = self.printer.lookup_object(
+                        'tool_probe T%d' % tool_nr)
+                    tp.probe_offsets.z_offset = probe_z_offset
+                    configfile = self.printer.lookup_object('configfile')
+                    configfile.set('tool_probe T%d' % tool_nr,
+                                   'z_offset', '%.3f' % probe_z_offset)
+                    self.gcode.respond_info(
+                        "T%d: z_offset applied (SAVE_CONFIG to persist)"
+                        % tool_nr)
+                except Exception as e:
+                    self.gcode.respond_info(
+                        "T%d: could not apply z_offset: %s"
+                        % (tool_nr, str(e)))
+
             toolhead.manual_move([None, None, z_hop], 10.)
             toolhead.wait_moves()
 
@@ -521,9 +548,13 @@ class Offset:
             data = self.probe_results[key]
             pzo = data.get('probe_z_offset', 0.0)
             zo = data.get('z_offset', 0.0)
+            saved = " [APPLIED]" if apply_offsets else ""
             self.gcode.respond_info(
-                "T%d: gcode_z_offset=%.4f  probe_z_offset=%.4f"
-                % (tool_nr, zo, pzo))
+                "T%d: gcode_z_offset=%.4f  probe_z_offset=%.4f%s"
+                % (tool_nr, zo, pzo, saved))
+        if apply_offsets:
+            self.gcode.respond_info(
+                "Offsets applied at runtime. Use SAVE_CONFIG to persist.")
 
     def _do_tap_probe(self, probe_obj, samples):
         """Run a single probe cycle via the standard probe interface."""

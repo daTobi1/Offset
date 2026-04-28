@@ -196,7 +196,7 @@ const masterToolItem = ({tool_number, disabled, tc_disabled}) => `
             <div class="col-6"><small>Z-Trigger:</small></div>
             <div class="col-6 text-end"><span id="T${tool_number}-z-trigger"><small>-</small></span></div>
           </div>
-          <div class="row probe-offset-fields d-none">
+          <div class="row probe-offset-fields">
             <div class="col-6"><small>Probe Z-Off:</small></div>
             <div class="col-6 text-end"><span id="T${tool_number}-probe-z-offset"><small>-</small></span></div>
           </div>
@@ -264,7 +264,7 @@ const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, disabled, tc_disa
                 <span class="fs-6 lh-sm text-secondary"><small>Z-Trigger</small></span>
                 <span class="fs-5 lh-sm text-secondary" id="T${tool_number}-z-trigger"><small>-</small></span>
               </div>
-              <div class="row probe-offset-fields d-none">
+              <div class="row probe-offset-fields">
                 <span class="fs-6 lh-sm text-secondary"><small>Probe Z-Off</small></span>
                 <span class="fs-5 lh-sm text-secondary" id="T${tool_number}-probe-z-offset"><small>-</small></span>
               </div>
@@ -284,7 +284,7 @@ const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, disabled, tc_disa
               <span class="fs-6 lh-sm"><small>New Z</small></span>
               <span class="fs-5 lh-sm" id="T${tool_number}-z-new" title="Click to copy gcode_z_offset" style="cursor:pointer;"><small>0.000</small></span>
             </div>
-            <div class="row pb-1 probe-offset-fields d-none">
+            <div class="row pb-1 probe-offset-fields">
               <span class="fs-6 lh-sm"><small>Probe Z-Off</small></span>
               <span class="fs-5 lh-sm" id="T${tool_number}-probe-z-offset-new" title="Click to copy tool_probe z_offset" style="cursor:pointer;"><small>-</small></span>
             </div>
@@ -321,13 +321,17 @@ function fetchOffsetStatus() {
 // --------------------------
 // Probe results (Z)
 // --------------------------
-function getProbeResults() {
+function getOffsetStatus() {
   return $.get(printerUrl(printerIp, "/printer/objects/query?offset"))
-    .then(data => data?.result?.status?.offset?.probe_results || {})
+    .then(data => data?.result?.status?.offset || {})
     .catch(() => ({}));
 }
 
-function updateProbeResults(tool, probeResults) {
+function updateProbeResults(tool, probeResults, toolProbeOffsets) {
+  // Show current configured tool_probe z_offset
+  if (toolProbeOffsets && typeof toolProbeOffsets[tool] === "number") {
+    $(`#T${tool}-probe-z-offset small`).text(toolProbeOffsets[tool].toFixed(3));
+  }
   if (!probeResults || !probeResults[tool]) return;
   const r = probeResults[tool];
   if (typeof r.z_trigger === "number") $(`#T${tool}-z-trigger small`).text(r.z_trigger.toFixed(3));
@@ -337,18 +341,18 @@ function updateProbeResults(tool, probeResults) {
     $(`#T${tool}-z-new small`).text(zTxt);
   }
   if (typeof r.probe_z_offset === "number") {
-    $(".probe-offset-fields").removeClass("d-none");
     const pzTxt = r.probe_z_offset.toFixed(4);
-    $(`#T${tool}-probe-z-offset small`).text(pzTxt);
     $(`#T${tool}-probe-z-offset-new small`).text(pzTxt);
     $(`#T${tool}-probe-z-offset-new`).attr("data-raw", pzTxt);
   }
 }
 
 function updateAllProbeResults() {
-  getProbeResults().then(function(probeResults) {
+  getOffsetStatus().then(function(status) {
+    const probeResults = status.probe_results || {};
+    const toolProbeOffsets = status.tool_probe_offsets || {};
     $('button.toolchange-btn').each(function(){
-      updateProbeResults($(this).data("tool"), probeResults);
+      updateProbeResults($(this).data("tool"), probeResults, toolProbeOffsets);
     });
   });
 }
