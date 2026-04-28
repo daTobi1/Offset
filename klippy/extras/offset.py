@@ -137,17 +137,19 @@ class Offset:
 
         toolhead = self.printer.lookup_object('toolhead')
         toolhead.wait_moves()
-        cur = toolhead.get_position()
 
+        # Lift Z first (kinematic, unaffected by gcode_z_offset)
+        target_z = max(self.z_pos + self.lift_z, self.safe_start_z)
+        toolhead.manual_move([None, None, target_z], self.z_move_speed)
+        toolhead.wait_moves()
+
+        # Move XY via gcode (applies tool offset for correct nozzle position)
         self.gcode_move.cmd_G1(
             self.gcode.create_gcode_command(
                 "G0", "G0",
-                {'X': self.x_pos, 'Y': self.y_pos, 'Z': cur[2], 'F': self.move_speed * 60}
+                {'X': self.x_pos, 'Y': self.y_pos, 'F': self.move_speed * 60}
             )
         )
-
-        target_z = max(self.z_pos + self.lift_z, self.safe_start_z)
-        toolhead.manual_move([None, None, target_z], self.z_move_speed)
         toolhead.wait_moves()
 
     # ─── Z-Switch probing internals ──────────────────────────────────────
@@ -431,8 +433,13 @@ class Offset:
         self.gcode.run_script_from_command("STOP_TOOL_PROBE_CRASH_DETECTION")
         self.gcode.run_script_from_command("SET_ACTIVE_TOOL_PROBE T=0")
 
-        # Position T0 nozzle at probe point
-        toolhead.manual_move([probe_x, probe_y], travel_speed)
+        # Position T0 nozzle at probe point (gcode applies tool XY offset)
+        self.gcode_move.cmd_G1(
+            self.gcode.create_gcode_command(
+                "G0", "G0",
+                {'X': probe_x, 'Y': probe_y, 'F': travel_speed * 60}
+            )
+        )
         toolhead.wait_moves()
 
         # Eddy Tap: HOME_Z=1 sets Z=0 at exact nozzle contact
@@ -465,18 +472,29 @@ class Offset:
             self.gcode.run_script_from_command(
                 "SET_ACTIVE_Z_PROBE PROBE=none")
 
-            # Position nozzle at probe point
-            toolhead.manual_move([probe_x, probe_y], travel_speed)
+            # Position nozzle at probe point (gcode applies tool XY offset)
+            self.gcode_move.cmd_G1(
+                self.gcode.create_gcode_command(
+                    "G0", "G0",
+                    {'X': probe_x, 'Y': probe_y, 'F': travel_speed * 60}
+                )
+            )
             toolhead.manual_move([None, None, 5.0], 10.)
             toolhead.wait_moves()
+
+            # Get current tool_probe z_offset (subtracted inside run_single_probe)
+            current_pz = probe_obj.get_offsets()[2]
 
             # Probe with mechanical Tap
             bed_z = self._do_tap_probe(probe_obj, samples)
 
-            # probe_z_offset = bed_z + gcode_z_offset
-            # (bed_z includes nozzle height diff + tap trigger offset;
-            #  subtracting the known nozzle diff isolates the tap offset)
-            probe_z_offset = bed_z + gcode_z_off
+            # After HOME_Z=1: Z=0 at T0 nozzle contact.
+            # Tn contacts bed at kinematic Z = gcode_z_off (ToolGcodeTransform
+            # adds offset: kinematic = gcode + offset).
+            # Tap triggers at kinematic Z = gcode_z_off + true_pz.
+            # run_single_probe: bed_z = trigger_z - current_pz.
+            # → true_pz = bed_z + current_pz - gcode_z_off
+            probe_z_offset = bed_z + current_pz - gcode_z_off
 
             self.probe_results[key]['probe_z_offset'] = probe_z_offset
             self.probe_results[key]['tap_bed_z'] = bed_z
