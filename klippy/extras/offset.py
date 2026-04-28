@@ -47,6 +47,16 @@ class Offset:
         self.default_ref_tool = config.getint('default_ref_tool', 0, minval=0)
         self.last_ref_tool = self.default_ref_tool
 
+        # Probe offset calibration settings
+        self.probe_offset_x = config.getfloat('probe_offset_x', 125.0)
+        self.probe_offset_y = config.getfloat('probe_offset_y', 115.0)
+        self.probe_offset_samples = config.getint('probe_offset_samples', 3,
+                                                   minval=1)
+        self.probe_offset_z_hop = config.getfloat('probe_offset_z_hop', 10.0,
+                                                    above=0.)
+        self.probe_offset_travel_speed = config.getfloat(
+            'probe_offset_travel_speed', 80.0, above=0.)
+
         self.gcode_macro = self.printer.load_object(config, 'gcode_macro')
         self.start_gcode = self.gcode_macro.load_template(config, 'start_gcode', '')
         self.before_pickup_gcode = self.gcode_macro.load_template(config, 'before_pickup_gcode', '')
@@ -77,6 +87,9 @@ class Offset:
         self.gcode.register_command('MOVE_TO_ZSWITCH', self.cmd_MOVE_TO_ZSWITCH)
         self.gcode.register_command('PROBE_ZSWITCH', self.cmd_PROBE_ZSWITCH)
         self.gcode.register_command('CALIBRATE_ALL_Z_OFFSETS', self.cmd_CALIBRATE_ALL_Z_OFFSETS)
+        self.gcode.register_command('CALIBRATE_PROBE_OFFSETS',
+                                    self.cmd_CALIBRATE_PROBE_OFFSETS,
+                                    desc=self.cmd_CALIBRATE_PROBE_OFFSETS_help)
 
         self.gcode.register_command('OFFSET_START_GCODE', self.cmd_OFFSET_START_GCODE)
         self.gcode.register_command('OFFSET_BEFORE_PICKUP_GCODE', self.cmd_OFFSET_BEFORE_PICKUP_GCODE)
@@ -112,6 +125,8 @@ class Offset:
             'ref_tool': self.last_ref_tool,
         }
 
+    # ─── MOVE_TO_ZSWITCH ─────────────────────────────────────────────────
+
     def cmd_MOVE_TO_ZSWITCH(self, gcmd):
         if not self.is_homed():
             gcmd.respond_error("Must home first")
@@ -134,6 +149,8 @@ class Offset:
         target_z = max(self.z_pos + self.lift_z, self.safe_start_z)
         toolhead.manual_move([None, None, target_z], self.z_move_speed)
         toolhead.wait_moves()
+
+    # ─── Z-Switch probing internals ──────────────────────────────────────
 
     def _run_probe_with_recovery(self, gcmd):
         toolhead = self.printer.lookup_object('toolhead')
@@ -225,6 +242,8 @@ class Offset:
             f"after {attempted_batches} batch(es) of {requested} samples"
         )
 
+    # ─── PROBE_ZSWITCH ───────────────────────────────────────────────────
+
     def cmd_PROBE_ZSWITCH(self, gcmd):
         toolhead = self.printer.lookup_object('toolhead')
         tool_no = str(self.toolchanger.active_tool.tool_number)
@@ -241,6 +260,8 @@ class Offset:
         toolhead.move(start_pos, self.z_move_speed)
         toolhead.set_position(start_pos)
         toolhead.wait_moves()
+
+    # ─── CALIBRATE_ALL_Z_OFFSETS ─────────────────────────────────────────
 
     def cmd_CALIBRATE_ALL_Z_OFFSETS(self, gcmd):
         if not self.is_homed():
@@ -339,6 +360,164 @@ class Offset:
                     self.probe_results[key]['ref_tool'] = ref_tool
 
         self.cmd_OFFSET_FINISH_GCODE(gcmd)
+
+    # ─── CALIBRATE_PROBE_OFFSETS ─────────────────────────────────────────
+
+    cmd_CALIBRATE_PROBE_OFFSETS_help = (
+        "Calibrate tool_probe z_offset for each tool. "
+        "Uses Eddy Tap on T0 as true bed reference, then mechanical Tap "
+        "on selected tools. Requires CALIBRATE_ALL_Z_OFFSETS to have been "
+        "run first (needs z_offset / gcode_z_offset data). "
+        "TOOLS=0,1,2,3 to select tools (default: all with z_offset data).")
+
+    def cmd_CALIBRATE_PROBE_OFFSETS(self, gcmd):
+        if not self.is_homed():
+            raise gcmd.error("Must home first")
+
+        # Check that z_offset data exists from Z-switch calibration
+        if not self.probe_results:
+            raise gcmd.error(
+                "No Z-switch data. Run CALIBRATE_ALL_Z_OFFSETS first")
+
+        samples = gcmd.get_int('SAMPLES', self.probe_offset_samples, minval=1)
+        probe_x = gcmd.get_float('PROBE_X', self.probe_offset_x)
+        probe_y = gcmd.get_float('PROBE_Y', self.probe_offset_y)
+        z_hop = gcmd.get_float('Z_HOP', self.probe_offset_z_hop, above=0.)
+        travel_speed = gcmd.get_float('TRAVEL_SPEED',
+                                       self.probe_offset_travel_speed, above=0.)
+
+        # Parse TOOLS parameter
+        tools_param = gcmd.get('TOOLS', None)
+        available_tools = sorted(self.toolchanger.tool_numbers)
+
+        if tools_param is not None:
+            try:
+                requested = [int(t.strip())
+                             for t in tools_param.split(',') if t.strip()]
+            except ValueError:
+                raise gcmd.error(
+                    "TOOLS must be comma-separated integers, e.g. TOOLS=0,1,2")
+            for t in requested:
+                if t not in available_tools:
+                    raise gcmd.error(f"Tool T{t} not configured")
+            calibrate_tools = requested
+        else:
+            # Default: all tools that have z_offset data
+            calibrate_tools = [t for t in available_tools
+                               if str(t) in self.probe_results]
+
+        if not calibrate_tools:
+            raise gcmd.error("No tools to calibrate")
+
+        # Verify all requested tools have z_offset data
+        missing = [t for t in calibrate_tools
+                   if str(t) not in self.probe_results]
+        if missing:
+            raise gcmd.error(
+                "Missing Z-switch data for T%s. "
+                "Run CALIBRATE_ALL_Z_OFFSETS first"
+                % ",".join(str(t) for t in missing))
+
+        toolhead = self.printer.lookup_object('toolhead')
+        probe_obj = self.printer.lookup_object('probe')
+
+        # ── Step 1: Eddy Tap on T0 → Z=0 at true nozzle contact ──
+        self.gcode.respond_info("=== Probe Offset Calibration ===")
+        self.gcode.respond_info(
+            "Tools: %s" % ", ".join("T%d" % t for t in calibrate_tools))
+        self.gcode.respond_info("Step 1: Eddy Tap on T0 (bed reference)")
+
+        self.gcode.run_script_from_command("SELECT_TOOL T=0 RESTORE_AXIS=XYZ")
+        self.gcode.run_script_from_command("STOP_TOOL_PROBE_CRASH_DETECTION")
+        self.gcode.run_script_from_command("SET_ACTIVE_TOOL_PROBE T=0")
+
+        # Position T0 nozzle at probe point
+        toolhead.manual_move([probe_x, probe_y], travel_speed)
+        toolhead.wait_moves()
+
+        # Eddy Tap: HOME_Z=1 sets Z=0 at exact nozzle contact
+        self.gcode.run_script_from_command(
+            "PROBE_EDDY_NG_TAP HOME_Z=1 SAMPLES=%d" % samples)
+
+        self.gcode.respond_info(
+            "T0 Eddy Tap: Z=0 set at nozzle contact")
+
+        toolhead.manual_move([None, None, z_hop], 10.)
+        toolhead.wait_moves()
+
+        # ── Step 2: Mechanical Tap on each selected tool ──
+        self.gcode.respond_info("Step 2: Mechanical Tap per tool")
+
+        for tool_nr in calibrate_tools:
+            key = str(tool_nr)
+            gcode_z_off = self.probe_results[key]['z_offset']
+
+            self.gcode.respond_info(
+                "--- T%d (gcode_z_offset=%.4f) ---" % (tool_nr, gcode_z_off))
+
+            if tool_nr != 0 or self.toolchanger.active_tool.tool_number != 0:
+                self.gcode.run_script_from_command(
+                    "SELECT_TOOL T=%d RESTORE_AXIS=Z" % tool_nr)
+            self.gcode.run_script_from_command("STOP_TOOL_PROBE_CRASH_DETECTION")
+            self.gcode.run_script_from_command(
+                "SET_ACTIVE_TOOL_PROBE T=%d" % tool_nr)
+            # Force mechanical Tap (disable Eddy routing)
+            self.gcode.run_script_from_command(
+                "SET_ACTIVE_Z_PROBE PROBE=none")
+
+            # Position nozzle at probe point
+            toolhead.manual_move([probe_x, probe_y], travel_speed)
+            toolhead.manual_move([None, None, 5.0], 10.)
+            toolhead.wait_moves()
+
+            # Probe with mechanical Tap
+            bed_z = self._do_tap_probe(probe_obj, samples)
+
+            # probe_z_offset = bed_z + gcode_z_offset
+            # (bed_z includes nozzle height diff + tap trigger offset;
+            #  subtracting the known nozzle diff isolates the tap offset)
+            probe_z_offset = bed_z + gcode_z_off
+
+            self.probe_results[key]['probe_z_offset'] = probe_z_offset
+            self.probe_results[key]['tap_bed_z'] = bed_z
+
+            self.gcode.respond_info(
+                "T%d: Tap bed_z=%.4f  probe_z_offset=%.4f"
+                % (tool_nr, bed_z, probe_z_offset))
+
+            toolhead.manual_move([None, None, z_hop], 10.)
+            toolhead.wait_moves()
+
+        # ── Restore T0 with Eddy routing ──
+        if self.toolchanger.active_tool.tool_number != 0:
+            self.gcode.run_script_from_command(
+                "SELECT_TOOL T=0 RESTORE_AXIS=XZ")
+        self.gcode.run_script_from_command("SET_ACTIVE_TOOL_PROBE T=0")
+        self.gcode.run_script_from_command(
+            'SET_ACTIVE_Z_PROBE PROBE="probe_eddy_ng my_eddy"')
+
+        # ── Summary ──
+        self.gcode.respond_info("=== Probe Offset Calibration Complete ===")
+        for tool_nr in calibrate_tools:
+            key = str(tool_nr)
+            data = self.probe_results[key]
+            pzo = data.get('probe_z_offset', 0.0)
+            zo = data.get('z_offset', 0.0)
+            self.gcode.respond_info(
+                "T%d: gcode_z_offset=%.4f  probe_z_offset=%.4f"
+                % (tool_nr, zo, pzo))
+
+    def _do_tap_probe(self, probe_obj, samples):
+        """Run a single probe cycle via the standard probe interface."""
+        from . import probe as probe_mod
+        dummy_gcmd = self.gcode.create_gcode_command("", "", {
+            "SAMPLES": str(samples),
+            "SAMPLES_RESULT": "median",
+        })
+        result = probe_mod.run_single_probe(probe_obj, dummy_gcmd)
+        return result.bed_z
+
+    # ─── Gcode macro hooks ───────────────────────────────────────────────
 
     def cmd_OFFSET_START_GCODE(self, gcmd):
         if self.start_gcode:

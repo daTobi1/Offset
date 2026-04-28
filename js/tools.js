@@ -196,6 +196,10 @@ const masterToolItem = ({tool_number, disabled, tc_disabled}) => `
             <div class="col-6"><small>Z-Trigger:</small></div>
             <div class="col-6 text-end"><span id="T${tool_number}-z-trigger"><small>-</small></span></div>
           </div>
+          <div class="row probe-offset-fields d-none">
+            <div class="col-6"><small>Probe Z-Off:</small></div>
+            <div class="col-6 text-end"><span id="T${tool_number}-probe-z-offset"><small>-</small></span></div>
+          </div>
         </div>
       </div>
     </div>
@@ -260,6 +264,10 @@ const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, disabled, tc_disa
                 <span class="fs-6 lh-sm text-secondary"><small>Z-Trigger</small></span>
                 <span class="fs-5 lh-sm text-secondary" id="T${tool_number}-z-trigger"><small>-</small></span>
               </div>
+              <div class="row probe-offset-fields d-none">
+                <span class="fs-6 lh-sm text-secondary"><small>Probe Z-Off</small></span>
+                <span class="fs-5 lh-sm text-secondary" id="T${tool_number}-probe-z-offset"><small>-</small></span>
+              </div>
             </div>
           </div>
 
@@ -275,6 +283,10 @@ const nonMasterToolItem = ({tool_number, cx_offset, cy_offset, disabled, tc_disa
             <div class="row pb-1">
               <span class="fs-6 lh-sm"><small>New Z</small></span>
               <span class="fs-5 lh-sm" id="T${tool_number}-z-new" title="Click to copy gcode_z_offset" style="cursor:pointer;"><small>0.000</small></span>
+            </div>
+            <div class="row pb-1 probe-offset-fields d-none">
+              <span class="fs-6 lh-sm"><small>Probe Z-Off</small></span>
+              <span class="fs-5 lh-sm" id="T${tool_number}-probe-z-offset-new" title="Click to copy tool_probe z_offset" style="cursor:pointer;"><small>-</small></span>
             </div>
             <div class="row pt-1">
               <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-all="${tool_number}">Copy all offsets</button>
@@ -323,6 +335,13 @@ function updateProbeResults(tool, probeResults) {
     const zTxt = r.z_offset.toFixed(3);
     $(`#T${tool}-z-new`).attr("data-raw", zTxt);
     $(`#T${tool}-z-new small`).text(zTxt);
+  }
+  if (typeof r.probe_z_offset === "number") {
+    $(".probe-offset-fields").removeClass("d-none");
+    const pzTxt = r.probe_z_offset.toFixed(4);
+    $(`#T${tool}-probe-z-offset small`).text(pzTxt);
+    $(`#T${tool}-probe-z-offset-new small`).text(pzTxt);
+    $(`#T${tool}-probe-z-offset-new`).attr("data-raw", pzTxt);
   }
 }
 
@@ -426,6 +445,14 @@ function calibrateButton(toolNumbers = [], enabled = false) {
         </button>
       </div>
     </div>
+
+    <div class="row pt-2">
+      <div class="col-12">
+        <button class="btn ${enabled ? "btn-outline-info" : "btn-secondary"} w-100" id="calibrate-probe-btn" ${disabledAttr}>
+          CALIBRATE PROBE OFFSETS
+        </button>
+      </div>
+    </div>
   </div>
 </li>`;
 }
@@ -471,6 +498,40 @@ $(document).on("click", "#calibrate-all-btn", function() {
     });
 });
 
+// Calibrate probe offsets click
+$(document).on("click", "#calibrate-probe-btn", function() {
+  const selectedTools = $(".calibrate-tool-checkbox:checked")
+    .map(function(){ return parseInt(this.value, 10); })
+    .get()
+    .filter(v => !Number.isNaN(v));
+
+  if (selectedTools.length === 0) {
+    if (typeof showToast === 'function') showToast("No tools selected", "warning");
+    return;
+  }
+
+  const script = `CALIBRATE_PROBE_OFFSETS TOOLS=${selectedTools.join(",")}`;
+
+  const $btn = $("#calibrate-probe-btn");
+  $btn.prop("disabled", true).text("Calibrating probes...");
+  if (typeof showToast === 'function') showToast("Probe offset calibration started...", "info");
+
+  $.get(printerUrl(printerIp, `/printer/gcode/script?script=${encodeURIComponent(script)}`))
+    .done(() => {
+      console.log("Probe calibration started:", script);
+      if (typeof showToast === 'function') showToast("Probe calibration command sent", "success");
+    })
+    .fail(err => {
+      console.error("Probe calibration failed:", err);
+      var msg = "Probe calibration failed";
+      try { msg += ": " + err.responseJSON.error.message; } catch(_){}
+      if (typeof showToast === 'function') showToast(msg, "danger");
+    })
+    .always(() => {
+      $btn.prop("disabled", false).text("CALIBRATE PROBE OFFSETS");
+    });
+});
+
 $(document).on("click", "span[id$='-x-new'], span[id$='-y-new'], span[id$='-z-new']", function() {
   const id = $(this).attr("id") || "";
   const match = id.match(/-([xyz])-new$/u);
@@ -500,6 +561,21 @@ $(document).on("click", "span[id$='-x-new'], span[id$='-y-new'], span[id$='-z-ne
       console.error('Clipboard copy failed:', err);
       OffsetDebug.error("Clipboard copy failed", err);
     });
+});
+
+// Click-to-copy probe_z_offset
+$(document).on("click", "span[id$='-probe-z-offset-new']", function() {
+  const rawText = $(this).attr("data-raw") || $(this).find(":first-child").text();
+  const numericValue = parseFloat(rawText);
+  if (Number.isNaN(numericValue)) return;
+
+  const value = formatClipboardNumber(numericValue);
+  if (value === null) return;
+
+  const payload = `z_offset: ${value}`;
+  copyTextToClipboard(payload, "copy probe z_offset")
+    .then(() => console.log(`Copied ${payload}`))
+    .catch(err => console.error('Clipboard copy failed:', err));
 });
 
 $(document).on("click", "button[data-copy-all]", function() {
