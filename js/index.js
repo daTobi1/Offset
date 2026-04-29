@@ -486,7 +486,9 @@ $(document).ready(function() {
         
         // Start the update cycle
         updatePage();
-        getTools();
+        fetchAvailableProbes().then(function() {
+            getTools();
+        });
         updateInterval = setInterval(updatePage, 1000);
 
         // Start Klipper console
@@ -536,6 +538,8 @@ $(document).ready(function() {
         printerIp = '';
         WebcamPath = '/webcam?action=stream';
         path = '/webcam?action=stream';
+        _availableProbes = [];
+        _probeCalConfig = null;
 
         // Enable IP input
         $('#printerIp').prop('disabled', false);
