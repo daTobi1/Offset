@@ -17,6 +17,10 @@ let _offsetZCalcDefault = null; // "median" | "average" | "trimmed" | null
 // Remember UI dropdown selection across rerenders
 let _uiZCalcSelection = "config"; // "config" | "median" | "average" | "trimmed"
 
+// Probe calibration state
+let _availableProbes = [];    // ["probe", "probe_eddy_ng my_eddy"]
+let _probeCalConfig = null;   // { ref_tool, ref_probe, tool_probes: { "0": "probe", ... } }
+
 // --------------------------
 // Helpers
 // --------------------------
@@ -63,6 +67,66 @@ window.OffsetDebug = {
 };
 
 OffsetDebug.init();
+
+// --------------------------
+// Probe Discovery
+// --------------------------
+function fetchAvailableProbes() {
+  return $.get(printerUrl(printerIp, "/printer/objects/query?offset"))
+    .then(function(data) {
+      var st = data?.result?.status?.offset;
+      _availableProbes = (st?.available_probes || []).filter(function(name) {
+        return name && name.indexOf('tool_probe_endstop') === -1;
+      });
+      OffsetDebug.log("Available probes:", _availableProbes);
+      return _availableProbes;
+    })
+    .catch(function() {
+      _availableProbes = [];
+      return [];
+    });
+}
+
+function loadProbeCalConfig() {
+  if (!printerIp) return;
+  var key = 'offset_probe_config_' + printerIp.replace(/[^a-zA-Z0-9]/g, '_');
+  try {
+    _probeCalConfig = JSON.parse(localStorage.getItem(key));
+  } catch (_) {
+    _probeCalConfig = null;
+  }
+}
+
+function saveProbeCalConfig() {
+  if (!printerIp || !_probeCalConfig) return;
+  var key = 'offset_probe_config_' + printerIp.replace(/[^a-zA-Z0-9]/g, '_');
+  localStorage.setItem(key, JSON.stringify(_probeCalConfig));
+}
+
+function getProbeCalConfig(toolNumbers) {
+  loadProbeCalConfig();
+  if (_probeCalConfig && _probeCalConfig.tool_probes) return _probeCalConfig;
+
+  // Build defaults
+  var eddyProbe = _availableProbes.find(function(n) { return n.indexOf('eddy') !== -1; });
+  var tapProbe = _availableProbes.find(function(n) { return n === 'probe'; }) || 'probe';
+  var refTool = 0;
+  var refProbe = eddyProbe || tapProbe;
+
+  var toolProbes = {};
+  (toolNumbers || []).forEach(function(t) {
+    toolProbes[String(t)] = (t === refTool && eddyProbe) ? eddyProbe : tapProbe;
+  });
+
+  _probeCalConfig = {
+    ref_tool: refTool,
+    ref_probe: refProbe,
+    tool_probes: toolProbes
+  };
+  saveProbeCalConfig();
+  return _probeCalConfig;
+}
+
 function computeDefaultRef(toolNumbers) {
   const sorted = [...toolNumbers].sort((a, b) => a - b);
   if (offsetMasterTool !== null && sorted.includes(offsetMasterTool)) return offsetMasterTool;
@@ -137,6 +201,30 @@ function applyMasterReferenceXY(axis) {
     const rel = (parseInt(tool, 10) === parseInt(master, 10)) ? 0.0 : (raw - masterRaw);
     $el.find('>:first-child').text(rel.toFixed(3));
   });
+}
+
+// --------------------------
+// Accordion Templates
+// --------------------------
+function accordionSection(id, title, statusHtml, contentHtml, defaultOpen) {
+  var show = defaultOpen ? ' show' : '';
+  var collapsed = defaultOpen ? '' : ' collapsed';
+  return `
+  <div class="accordion-item bg-body-tertiary border-secondary-subtle">
+    <h2 class="accordion-header">
+      <button class="accordion-button${collapsed} bg-body-tertiary py-2" type="button"
+              data-bs-toggle="collapse" data-bs-target="#${id}-body"
+              aria-expanded="${defaultOpen}" aria-controls="${id}-body">
+        <span class="me-auto fw-bold">${title}</span>
+        <span class="me-2 small" id="${id}-status">${statusHtml}</span>
+      </button>
+    </h2>
+    <div id="${id}-body" class="accordion-collapse collapse${show}">
+      <div class="accordion-body p-2">
+        ${contentHtml}
+      </div>
+    </div>
+  </div>`;
 }
 
 // --------------------------
@@ -430,6 +518,81 @@ function calibrateButton(toolNumbers = [], enabled = false) {
 </li>`;
 }
 
+// --------------------------
+// Probe Calibration Section
+// --------------------------
+function probeCalibrationSection(toolNumbers, enabled) {
+  var sortedTools = toolNumbers.slice().sort(function(a, b) { return a - b; });
+  var config = getProbeCalConfig(sortedTools);
+  var btnClass = enabled ? "btn-primary" : "btn-secondary";
+  var disabledAttr = enabled ? "" : "disabled";
+
+  var probeOptions = function(selectedProbe) {
+    return _availableProbes.map(function(p) {
+      var sel = (p === selectedProbe) ? ' selected' : '';
+      var label = p;
+      if (p === 'probe') label = 'probe (Tap)';
+      return '<option value="' + p + '"' + sel + '>' + label + '</option>';
+    }).join('');
+  };
+
+  // Reference section
+  var refToolOptions = sortedTools.map(function(t) {
+    var sel = (t === config.ref_tool) ? ' selected' : '';
+    return '<option value="' + t + '"' + sel + '>T' + t + '</option>';
+  }).join('');
+
+  var toolRows = sortedTools.map(function(t) {
+    var isRef = (t === config.ref_tool);
+    var currentProbe = config.tool_probes[String(t)] || 'probe';
+    var refBadge = isRef
+      ? '<span class="badge bg-success ms-2">REF</span>'
+      : '';
+
+    return '<div class="d-flex align-items-center gap-2 p-2 bg-dark rounded mb-1">' +
+      '<div class="form-check mb-0">' +
+        '<input class="form-check-input probe-cal-tool-cb" type="checkbox" value="' + t + '" id="probe-cal-tool-' + t + '" checked>' +
+      '</div>' +
+      '<span class="fw-bold text-nowrap" style="width:30px;">T' + t + '</span>' +
+      '<select class="form-select form-select-sm probe-cal-probe-select" data-tool="' + t + '">' +
+        probeOptions(currentProbe) +
+      '</select>' +
+      refBadge +
+    '</div>';
+  }).join('');
+
+  return '<div class="container p-0">' +
+    '<div class="border border-secondary-subtle rounded p-2 bg-dark mb-2">' +
+      '<div class="d-flex justify-content-between align-items-center mb-2">' +
+        '<span class="fs-6 fw-bold">Reference Probe</span>' +
+      '</div>' +
+      '<div class="row g-2">' +
+        '<div class="col-4">' +
+          '<label class="form-label small text-secondary mb-1">Tool</label>' +
+          '<select class="form-select form-select-sm" id="probe-cal-ref-tool">' +
+            refToolOptions +
+          '</select>' +
+        '</div>' +
+        '<div class="col-8">' +
+          '<label class="form-label small text-secondary mb-1">Probe</label>' +
+          '<select class="form-select form-select-sm" id="probe-cal-ref-probe">' +
+            probeOptions(config.ref_probe) +
+          '</select>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="border border-secondary-subtle rounded p-2 bg-dark mb-2">' +
+      '<div class="d-flex justify-content-between align-items-center mb-2">' +
+        '<span class="fs-6 fw-bold">Tool Probes</span>' +
+      '</div>' +
+      toolRows +
+    '</div>' +
+    '<button class="btn ' + btnClass + ' w-100" id="probe-cal-btn" ' + disabledAttr + '>' +
+      'CALIBRATE PROBE OFFSETS' +
+    '</button>' +
+  '</div>';
+}
+
 // Remember dropdown selection
 $(document).on("change", "#z-calc-method", function(){
   _uiZCalcSelection = ($(this).val() || "config").toLowerCase();
@@ -569,6 +732,80 @@ $(document).on("change", ".calibrate-ref-checkbox", function () {
 });
 
 // --------------------------
+// Probe Calibration Events
+// --------------------------
+
+// Ref tool change
+$(document).on("change", "#probe-cal-ref-tool", function() {
+  if (!_probeCalConfig) return;
+  _probeCalConfig.ref_tool = parseInt($(this).val(), 10);
+  saveProbeCalConfig();
+  getTools();
+});
+
+// Ref probe change
+$(document).on("change", "#probe-cal-ref-probe", function() {
+  if (!_probeCalConfig) return;
+  _probeCalConfig.ref_probe = $(this).val();
+  _probeCalConfig.tool_probes[String(_probeCalConfig.ref_tool)] = $(this).val();
+  saveProbeCalConfig();
+  getTools();
+});
+
+// Per-tool probe change
+$(document).on("change", ".probe-cal-probe-select", function() {
+  if (!_probeCalConfig) return;
+  var tool = $(this).data("tool");
+  _probeCalConfig.tool_probes[String(tool)] = $(this).val();
+  saveProbeCalConfig();
+});
+
+// Calibrate button click
+$(document).on("click", "#probe-cal-btn", function() {
+  var config = getProbeCalConfig([]);
+  if (!config) return;
+
+  var selectedTools = $(".probe-cal-tool-cb:checked")
+    .map(function() { return parseInt(this.value, 10); })
+    .get()
+    .filter(function(v) { return !Number.isNaN(v); });
+
+  if (!selectedTools.length) {
+    if (typeof showToast === 'function') showToast("No tools selected", "warning");
+    return;
+  }
+
+  // Build GCode script: SET_PROBE_CAL_MAP per tool, then CALIBRATE
+  var lines = [];
+  selectedTools.forEach(function(t) {
+    var probe = config.tool_probes[String(t)] || 'probe';
+    lines.push('SET_PROBE_CAL_MAP TOOL=' + t + ' PROBE="' + probe + '"');
+  });
+  lines.push('CALIBRATE_PROBE_OFFSETS TOOLS=' + selectedTools.join(',') + ' REF_TOOL=' + config.ref_tool);
+
+  var script = lines.join('\n');
+
+  var $btn = $("#probe-cal-btn");
+  $btn.prop("disabled", true).text("Calibrating...");
+  if (typeof showToast === 'function') showToast("Probe calibration started...", "info");
+
+  $.get(printerUrl(printerIp, "/printer/gcode/script?script=" + encodeURIComponent(script)))
+    .done(function() {
+      console.log("Probe calibration started:", script);
+      if (typeof showToast === 'function') showToast("Probe calibration command sent", "success");
+    })
+    .fail(function(err) {
+      console.error("Probe calibration failed:", err);
+      var msg = "Probe calibration failed";
+      try { msg += ": " + err.responseJSON.error.message; } catch(_){}
+      if (typeof showToast === 'function') showToast(msg, "danger");
+    })
+    .always(function() {
+      $btn.prop("disabled", false).text("CALIBRATE PROBE OFFSETS");
+    });
+});
+
+// --------------------------
 // Tool change URL (used by index.js)
 // --------------------------
 function toolChangeURL(tool) {
@@ -621,54 +858,96 @@ function getTools() {
   $.get(printerUrl(printerIp, "/printer/objects/query?toolchanger"))
     .done(function(data){
 
-      const tool_names   = data.result.status.toolchanger.tool_names;
-      const tool_numbers = data.result.status.toolchanger.tool_numbers;
-      const active_tool  = data.result.status.toolchanger.tool_number;
+      var tool_names   = data.result.status.toolchanger.tool_names;
+      var tool_numbers = data.result.status.toolchanger.tool_numbers;
+      var active_tool  = data.result.status.toolchanger.tool_number;
 
-      const master = computeDefaultRef(tool_numbers);
+      var master = computeDefaultRef(tool_numbers);
 
-      // Build query for tool objects (encode names with spaces)
-      let queryUrl = "/printer/objects/query?";
-      tool_names.forEach(name => queryUrl += encodeURIComponent(name) + "&");
+      // Build query for tool objects
+      var queryUrl = "/printer/objects/query?";
+      tool_names.forEach(function(name) { queryUrl += encodeURIComponent(name) + "&"; });
       queryUrl = queryUrl.slice(0,-1);
 
       $.get(printerUrl(printerIp, queryUrl))
         .done(function(toolData){
 
-          $("#tool-list").html("");
+          // ── Build XY content ──
+          var xyContent = '<ul class="list-group list-group-flush">';
 
           tool_numbers.forEach(function(tool_number, i){
-            const toolObj = toolData.result.status[tool_names[i]];
-            const cx = toolObj.gcode_x_offset.toFixed(3);
-            const cy = toolObj.gcode_y_offset.toFixed(3);
+            var toolObj = toolData.result.status[tool_names[i]];
+            var cx = toolObj.gcode_x_offset.toFixed(3);
+            var cy = toolObj.gcode_y_offset.toFixed(3);
 
-            const disabled = tool_number !== active_tool ? "disabled" : "";
-            const tc_disabled = tool_number === active_tool ? "disabled" : "";
+            var disabled = tool_number !== active_tool ? "disabled" : "";
+            var tc_disabled = tool_number === active_tool ? "disabled" : "";
 
             if (tool_number === master) {
-              $("#tool-list").append(masterToolItem({tool_number, disabled, tc_disabled}));
+              xyContent += masterToolItem({tool_number: tool_number, disabled: disabled, tc_disabled: tc_disabled});
             } else {
-              $("#tool-list").append(nonMasterToolItem({tool_number, cx_offset: cx, cy_offset: cy, disabled, tc_disabled}));
+              xyContent += nonMasterToolItem({tool_number: tool_number, cx_offset: cx, cy_offset: cy, disabled: disabled, tc_disabled: tc_disabled});
             }
           });
 
-          // Fetch offset status for cfg method label + enable button
+          xyContent += '</ul>';
+
+          // ── Fetch offset status for Z-cal + Probe-cal ──
           fetchOffsetStatus().then(function(){
-            $("#tool-list").append(calibrateButton(tool_numbers, _offsetPresent));
 
-            // Set reference checkbox to master
+            var zCalContent = calibrateButton(tool_numbers, _offsetPresent);
+
+            var zHeaderStatus = _offsetPresent
+              ? '<span class="text-secondary">Ready</span>'
+              : '<span class="text-warning">offset module not found</span>';
+
+            // ── Build Probe Cal content ──
+            var probeCalContent = probeCalibrationSection(tool_numbers, _offsetPresent);
+
+            var probeStatus = '';
+            if (!_offsetPresent) {
+              probeStatus = '<span class="text-warning">offset module not found</span>';
+            } else {
+              probeStatus = '<span class="text-secondary">Configured</span>';
+            }
+
+            // ── Assemble accordion ──
+            var $acc = $("#offset-accordion");
+            $acc.html("");
+
+            $acc.append(accordionSection(
+              'accordion-xy',
+              'XY Offsets',
+              '<span class="text-success">Master: T' + master + '</span>',
+              xyContent,
+              true
+            ));
+
+            $acc.append(accordionSection(
+              'accordion-zcal',
+              'Z-Switch Calibration',
+              zHeaderStatus,
+              '<ul class="list-group list-group-flush">' + zCalContent + '</ul>',
+              false
+            ));
+
+            $acc.append(accordionSection(
+              'accordion-probecal',
+              'Probe Offset Calibration',
+              probeStatus,
+              probeCalContent,
+              false
+            ));
+
+            // Re-apply calibrate button state
             $(".calibrate-ref-checkbox").prop("checked", false);
-            $(`#calibrate-ref-${master}`).prop("checked", true);
-
-            // Ensure master included
-            $(`#calibrate-tool-${master}`).prop("checked", true);
+            $("#calibrate-ref-" + master).prop("checked", true);
+            $("#calibrate-tool-" + master).prop("checked", true);
             syncSelectAllState();
 
-            // Badge
-            $("#master-status-badge").text(`Master: T${master}`);
+            $("#master-status-badge").text("Master: T" + master);
 
-            // Show z-fields if offset present
-            if (_offsetPresent) $('.z-fields').removeClass('d-none');
+            if (_offsetPresent) $(".z-fields").removeClass("d-none");
 
             startProbeResultsUpdatesOnce();
             updateAllProbeResults();
