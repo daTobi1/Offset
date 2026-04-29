@@ -540,6 +540,10 @@ $(document).ready(function() {
         path = '/webcam?action=stream';
         _availableProbes = [];
         _probeCalConfig = null;
+        _toolProbeOffsets = {};
+        _toolGcodeOffsets = {};
+        _probeCalResults = {};
+        _zSwitchResults = {};
 
         // Enable IP input
         $('#printerIp').prop('disabled', false);

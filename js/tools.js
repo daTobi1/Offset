@@ -1068,6 +1068,7 @@ function getTools() {
             // ── Assemble accordion ──
             var $acc = $("#offset-accordion");
             $acc.html("");
+            $acc.next("#global-save-config-wrap").remove();
 
             $acc.append(accordionSection(
               'accordion-xy',
@@ -1103,7 +1104,7 @@ function getTools() {
 
             // Global SAVE_CONFIG button
             $acc.after(
-              '<div class="mt-2">' +
+              '<div class="mt-2" id="global-save-config-wrap">' +
                 '<button class="btn btn-outline-warning w-100" id="global-save-config-btn">' +
                   '<i class="bi bi-save"></i> SAVE_CONFIG (persist all changes)' +
                 '</button>' +
