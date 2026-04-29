@@ -101,6 +101,9 @@ class Offset:
         self.gcode.register_command('SET_PROBE_CAL_MAP',
                                     self.cmd_SET_PROBE_CAL_MAP,
                                     desc="Set probe assignment for a tool (used by CALIBRATE_PROBE_OFFSETS)")
+        self.gcode.register_command('SET_TOOL_GCODE_OFFSET',
+                                    self.cmd_SET_TOOL_GCODE_OFFSET,
+                                    desc="Set gcode_x/y/z_offset on a tool and stage for SAVE_CONFIG")
 
     def handle_connect(self):
         if self.config_file_path:
@@ -129,6 +132,18 @@ class Offset:
                 tp_offsets[str(tn)] = tp.probe_offsets.z_offset
             except Exception:
                 pass
+        # Current gcode offsets per tool
+        tool_gcode_offsets = {}
+        for tn in self.toolchanger.tool_numbers:
+            try:
+                tool_obj = self.printer.lookup_object('tool T%d' % tn)
+                tool_gcode_offsets[str(tn)] = {
+                    'x': tool_obj.gcode_x_offset,
+                    'y': tool_obj.gcode_y_offset,
+                    'z': tool_obj.gcode_z_offset,
+                }
+            except Exception:
+                pass
         # Discover available probe objects
         available_probes = []
         for obj_name, obj in self.printer.lookup_objects('probe'):
@@ -151,6 +166,7 @@ class Offset:
             'ref_tool': self.last_ref_tool,
             'available_probes': available_probes,
             'probe_cal_map': pcm,
+            'tool_gcode_offsets': tool_gcode_offsets,
         }
 
     def cmd_MOVE_TO_ZSWITCH(self, gcmd):
@@ -677,6 +693,35 @@ class Offset:
         self.probe_cal_map[tool] = probe_match
         self.gcode.respond_info(
             "Probe cal map: T%d -> %s" % (tool, probe_match))
+
+    # ─── SET_TOOL_GCODE_OFFSET ───────────────────────────────────────────
+
+    def cmd_SET_TOOL_GCODE_OFFSET(self, gcmd):
+        tool_nr = gcmd.get_int('T', None)
+        if tool_nr is None:
+            raise gcmd.error("SET_TOOL_GCODE_OFFSET requires T parameter")
+        try:
+            tool_obj = self.printer.lookup_object('tool T%d' % tool_nr)
+        except Exception:
+            raise gcmd.error("Tool T%d not found" % tool_nr)
+
+        changed = []
+        for axis in ('x', 'y', 'z'):
+            param = axis.upper()
+            val = gcmd.get_float(param, None)
+            if val is not None:
+                name = 'gcode_%s_offset' % axis
+                tool_obj.set_parameter(name, '%.6f' % val)
+                tool_obj.save_parameter(name)
+                changed.append('%s=%.4f' % (param, val))
+
+        if changed:
+            self.gcode.respond_info(
+                "T%d offsets set: %s (SAVE_CONFIG to persist)"
+                % (tool_nr, ', '.join(changed)))
+        else:
+            self.gcode.respond_info(
+                "T%d: no offset parameters provided" % tool_nr)
 
 
 def load_config(config):

@@ -22,6 +22,8 @@ let _availableProbes = [];    // ["probe", "probe_eddy_ng my_eddy"]
 let _probeCalConfig = null;   // { ref_tool, ref_probe, tool_probes: { "0": "probe", ... } }
 let _toolProbeOffsets = {};    // { "0": 0.05, "1": -0.02, ... } current tool_probe z_offsets
 let _probeCalResults = {};     // { "0": { probe_z_offset: 0.05 }, ... } from probe_results
+let _toolGcodeOffsets = {};    // { "0": {x:0, y:0, z:0}, ... } current tool gcode offsets
+let _zSwitchResults = {};      // { "0": { z_offset: 0.0, z_trigger: 1.23 }, ... }
 
 // --------------------------
 // Helpers
@@ -388,12 +390,17 @@ function fetchOffsetStatus() {
       _offsetPresent = !!st;
       _offsetZCalcDefault = (st?.z_calc_method || null);
       _toolProbeOffsets = (st?.tool_probe_offsets || {});
-      // Extract probe_z_offset from probe_results per tool
+      _toolGcodeOffsets = (st?.tool_gcode_offsets || {});
+      // Extract results from probe_results per tool
       _probeCalResults = {};
+      _zSwitchResults = {};
       var pr = st?.probe_results || {};
       for (var k in pr) {
         if (pr[k] && typeof pr[k].probe_z_offset === 'number') {
           _probeCalResults[k] = { probe_z_offset: pr[k].probe_z_offset };
+        }
+        if (pr[k] && typeof pr[k].z_offset === 'number') {
+          _zSwitchResults[k] = { z_offset: pr[k].z_offset, z_trigger: pr[k].z_trigger };
         }
       }
       return st || null;
@@ -402,7 +409,9 @@ function fetchOffsetStatus() {
       _offsetPresent = false;
       _offsetZCalcDefault = null;
       _toolProbeOffsets = {};
+      _toolGcodeOffsets = {};
       _probeCalResults = {};
+      _zSwitchResults = {};
       return null;
     });
 }
@@ -644,11 +653,6 @@ function probeCalibrationSection(toolNumbers, enabled) {
       'CALIBRATE PROBE OFFSETS' +
     '</button>' +
     probeCalResultsTable(sortedTools) +
-    (Object.keys(_probeCalResults).length > 0
-      ? '<button class="btn btn-success w-100 mt-2" id="probe-cal-save-btn">' +
-          '<i class="bi bi-save"></i> SAVE_CONFIG' +
-        '</button>'
-      : '') +
   '</div>';
 }
 
@@ -864,8 +868,74 @@ $(document).on("click", "#probe-cal-btn", function() {
     });
 });
 
-// Save config after probe calibration
-$(document).on("click", "#probe-cal-save-btn", function() {
+// Apply XY offsets to Klipper
+$(document).on("click", "#apply-xy-btn", function() {
+  var $btn = $(this);
+  $btn.prop("disabled", true).text("Applying...");
+  var master = getSelectedReferenceTool(0);
+  var lines = [];
+  $('button.toolchange-btn').each(function(){
+    var tool = $(this).data("tool");
+    if (parseInt(tool, 10) === parseInt(master, 10)) return;
+    var rawX = $("#T" + tool + "-x-new").attr("data-raw");
+    var rawY = $("#T" + tool + "-y-new").attr("data-raw");
+    if (rawX && rawY) {
+      lines.push("SET_TOOL_GCODE_OFFSET T=" + tool + " X=" + rawX + " Y=" + rawY);
+    }
+  });
+  if (!lines.length) {
+    if (typeof showToast === 'function') showToast("No XY offsets to apply", "warning");
+    $btn.prop("disabled", false).html('<i class="bi bi-check-circle"></i> APPLY XY OFFSETS TO KLIPPER');
+    return;
+  }
+  var script = lines.join('\n');
+  $.get(printerUrl(printerIp, "/printer/gcode/script?script=" + encodeURIComponent(script)))
+    .done(function() {
+      if (typeof showToast === 'function') showToast("XY offsets applied — SAVE_CONFIG to persist", "success");
+    })
+    .fail(function(err) {
+      var msg = "Apply XY offsets failed";
+      try { msg += ": " + err.responseJSON.error.message; } catch(_){}
+      if (typeof showToast === 'function') showToast(msg, "danger");
+    })
+    .always(function() {
+      $btn.prop("disabled", false).html('<i class="bi bi-check-circle"></i> APPLY XY OFFSETS TO KLIPPER');
+    });
+});
+
+// Apply Z-switch offsets to Klipper
+$(document).on("click", "#apply-z-btn", function() {
+  var $btn = $(this);
+  $btn.prop("disabled", true).text("Applying...");
+  var lines = [];
+  for (var k in _zSwitchResults) {
+    var zOff = _zSwitchResults[k].z_offset;
+    if (typeof zOff === 'number') {
+      lines.push("SET_TOOL_GCODE_OFFSET T=" + k + " Z=" + zOff.toFixed(6));
+    }
+  }
+  if (!lines.length) {
+    if (typeof showToast === 'function') showToast("No Z offsets to apply", "warning");
+    $btn.prop("disabled", false).html('<i class="bi bi-check-circle"></i> APPLY Z OFFSETS TO KLIPPER');
+    return;
+  }
+  var script = lines.join('\n');
+  $.get(printerUrl(printerIp, "/printer/gcode/script?script=" + encodeURIComponent(script)))
+    .done(function() {
+      if (typeof showToast === 'function') showToast("Z offsets applied — SAVE_CONFIG to persist", "success");
+    })
+    .fail(function(err) {
+      var msg = "Apply Z offsets failed";
+      try { msg += ": " + err.responseJSON.error.message; } catch(_){}
+      if (typeof showToast === 'function') showToast(msg, "danger");
+    })
+    .always(function() {
+      $btn.prop("disabled", false).html('<i class="bi bi-check-circle"></i> APPLY Z OFFSETS TO KLIPPER');
+    });
+});
+
+// Global SAVE_CONFIG
+$(document).on("click", "#global-save-config-btn", function() {
   var $btn = $(this);
   $btn.prop("disabled", true).text("Saving...");
   $.get(printerUrl(printerIp, "/printer/gcode/script?script=SAVE_CONFIG"))
@@ -876,7 +946,7 @@ $(document).on("click", "#probe-cal-save-btn", function() {
       var msg = "SAVE_CONFIG failed";
       try { msg += ": " + err.responseJSON.error.message; } catch(_){}
       if (typeof showToast === 'function') showToast(msg, "danger");
-      $btn.prop("disabled", false).html('<i class="bi bi-save"></i> SAVE_CONFIG');
+      $btn.prop("disabled", false).html('<i class="bi bi-save"></i> SAVE_CONFIG (persist all changes)');
     });
 });
 
@@ -966,6 +1036,10 @@ function getTools() {
           });
 
           xyContent += '</ul>';
+          xyContent += '<div class="p-2">' +
+            '<button class="btn btn-success w-100" id="apply-xy-btn">' +
+              '<i class="bi bi-check-circle"></i> APPLY XY OFFSETS TO KLIPPER' +
+            '</button></div>';
 
           // ── Fetch offset status for Z-cal + Probe-cal ──
           fetchOffsetStatus().then(function(){
@@ -1003,11 +1077,19 @@ function getTools() {
               true
             ));
 
+            var zCalFull = '<ul class="list-group list-group-flush">' + zCalContent + '</ul>';
+            if (Object.keys(_zSwitchResults).length > 0) {
+              zCalFull += '<div class="p-2">' +
+                '<button class="btn btn-success w-100" id="apply-z-btn">' +
+                  '<i class="bi bi-check-circle"></i> APPLY Z OFFSETS TO KLIPPER' +
+                '</button></div>';
+            }
+
             $acc.append(accordionSection(
               'accordion-zcal',
               'Z-Switch Calibration',
               zHeaderStatus,
-              '<ul class="list-group list-group-flush">' + zCalContent + '</ul>',
+              zCalFull,
               false
             ));
 
@@ -1018,6 +1100,15 @@ function getTools() {
               probeCalContent,
               false
             ));
+
+            // Global SAVE_CONFIG button
+            $acc.after(
+              '<div class="mt-2">' +
+                '<button class="btn btn-outline-warning w-100" id="global-save-config-btn">' +
+                  '<i class="bi bi-save"></i> SAVE_CONFIG (persist all changes)' +
+                '</button>' +
+              '</div>'
+            );
 
             // Re-apply calibrate button state
             $(".calibrate-ref-checkbox").prop("checked", false);
