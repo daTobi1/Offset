@@ -572,11 +572,9 @@ class Offset:
             # Get current tool_probe z_offset (subtracted inside run_single_probe)
             current_pz = probe_obj.get_offsets()[2]
 
-            # Probe with appropriate method
-            if tool_is_eddy:
-                bed_z = self._do_tap_probe(probe_obj, samples)
-            else:
-                bed_z = self._do_tap_probe(probe_obj, samples)
+            # Probe via z_probe router (SET_ACTIVE_Z_PROBE already
+            # routes to the correct Eddy or Tap probe for this tool)
+            bed_z = self._do_tap_probe(probe_obj, samples)
 
             # After HOME_Z=1: Z=0 at ref_tool nozzle contact.
             # Tn contacts bed at kinematic Z = gcode_z_off (ToolGcodeTransform
