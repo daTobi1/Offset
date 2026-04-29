@@ -1,4 +1,5 @@
 import os
+import re
 import ast
 from statistics import median, mean
 
@@ -55,6 +56,7 @@ class Offset:
 
         self.has_cfg_data = False
         self.probe_results = {}
+        self.probe_cal_map = {}
 
         if self.pin is not None:
             self.probe_multi_axis = tools_calibrate.PrinterProbeMultiAxis(
@@ -83,6 +85,10 @@ class Offset:
         self.gcode.register_command('OFFSET_AFTER_PICKUP_GCODE', self.cmd_OFFSET_AFTER_PICKUP_GCODE)
         self.gcode.register_command('OFFSET_FINISH_GCODE', self.cmd_OFFSET_FINISH_GCODE)
 
+        self.gcode.register_command('SET_PROBE_CAL_MAP',
+                                    self.cmd_SET_PROBE_CAL_MAP,
+                                    desc="Set probe assignment for a tool (used by CALIBRATE_PROBE_OFFSETS)")
+
     def handle_connect(self):
         if self.config_file_path:
             self.config_file_path = os.path.expanduser(self.config_file_path)
@@ -103,13 +109,35 @@ class Offset:
         return all(v is not None for v in (self.x_pos, self.y_pos, self.z_pos))
 
     def get_status(self, eventtime):
+        tp_offsets = {}
+        for tn in self.toolchanger.tool_numbers:
+            try:
+                tp = self.printer.lookup_object('tool_probe T%d' % tn)
+                tp_offsets[str(tn)] = tp.probe_offsets.z_offset
+            except Exception:
+                pass
+        # Discover available probe objects
+        available_probes = []
+        for obj_name, obj in self.printer.lookup_objects('probe'):
+            if obj_name and 'tool_probe_endstop' not in obj_name:
+                available_probes.append(obj_name)
+        for obj_name, obj in self.printer.lookup_objects('probe_eddy_ng'):
+            if obj_name:
+                available_probes.append(obj_name)
+        # Current probe_cal_map as string keys for JSON
+        pcm = {}
+        for k, v in self.probe_cal_map.items():
+            pcm[str(k)] = v
         return {
             'probe_results': self.probe_results,
+            'tool_probe_offsets': tp_offsets,
             'has_cfg_data': self.has_cfg_data,
             'has_switch_pos': self.has_switch_pos(),
             'z_calc_method': self.z_calc_method,
             'z_trim_count': self.z_trim_count,
             'ref_tool': self.last_ref_tool,
+            'available_probes': available_probes,
+            'probe_cal_map': pcm,
         }
 
     def cmd_MOVE_TO_ZSWITCH(self, gcmd):
@@ -355,6 +383,25 @@ class Offset:
     def cmd_OFFSET_FINISH_GCODE(self, gcmd):
         if self.finish_gcode:
             self.finish_gcode.run_gcode_from_command({})
+
+    def cmd_SET_PROBE_CAL_MAP(self, gcmd):
+        tool = gcmd.get_int('TOOL', None)
+        if tool is None:
+            raise gcmd.error("SET_PROBE_CAL_MAP requires TOOL parameter")
+        raw = gcmd.get_commandline()
+        probe_match = None
+        m = re.search(r'PROBE="([^"]+)"', raw, re.IGNORECASE)
+        if m:
+            probe_match = m.group(1)
+        else:
+            m = re.search(r'PROBE=(\S+)', raw, re.IGNORECASE)
+            if m:
+                probe_match = m.group(1)
+        if not probe_match:
+            raise gcmd.error("SET_PROBE_CAL_MAP requires PROBE parameter")
+        self.probe_cal_map[tool] = probe_match
+        self.gcode.respond_info(
+            "Probe cal map: T%d -> %s" % (tool, probe_match))
 
 
 def load_config(config):
