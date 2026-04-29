@@ -644,6 +644,11 @@ function probeCalibrationSection(toolNumbers, enabled) {
       'CALIBRATE PROBE OFFSETS' +
     '</button>' +
     probeCalResultsTable(sortedTools) +
+    (Object.keys(_probeCalResults).length > 0
+      ? '<button class="btn btn-success w-100 mt-2" id="probe-cal-save-btn">' +
+          '<i class="bi bi-save"></i> SAVE_CONFIG' +
+        '</button>'
+      : '') +
   '</div>';
 }
 
@@ -856,6 +861,22 @@ $(document).on("click", "#probe-cal-btn", function() {
     })
     .always(function() {
       $btn.prop("disabled", false).text("CALIBRATE PROBE OFFSETS");
+    });
+});
+
+// Save config after probe calibration
+$(document).on("click", "#probe-cal-save-btn", function() {
+  var $btn = $(this);
+  $btn.prop("disabled", true).text("Saving...");
+  $.get(printerUrl(printerIp, "/printer/gcode/script?script=SAVE_CONFIG"))
+    .done(function() {
+      if (typeof showToast === 'function') showToast("Config saved — Klipper restarting", "success");
+    })
+    .fail(function(err) {
+      var msg = "SAVE_CONFIG failed";
+      try { msg += ": " + err.responseJSON.error.message; } catch(_){}
+      if (typeof showToast === 'function') showToast(msg, "danger");
+      $btn.prop("disabled", false).html('<i class="bi bi-save"></i> SAVE_CONFIG');
     });
 });
 
