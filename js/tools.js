@@ -20,6 +20,8 @@ let _uiZCalcSelection = "config"; // "config" | "median" | "average" | "trimmed"
 // Probe calibration state
 let _availableProbes = [];    // ["probe", "probe_eddy_ng my_eddy"]
 let _probeCalConfig = null;   // { ref_tool, ref_probe, tool_probes: { "0": "probe", ... } }
+let _toolProbeOffsets = {};    // { "0": 0.05, "1": -0.02, ... } current tool_probe z_offsets
+let _probeCalResults = {};     // { "0": { probe_z_offset: 0.05 }, ... } from probe_results
 
 // --------------------------
 // Helpers
@@ -385,11 +387,22 @@ function fetchOffsetStatus() {
       const st = ax?.result?.status?.offset;
       _offsetPresent = !!st;
       _offsetZCalcDefault = (st?.z_calc_method || null);
+      _toolProbeOffsets = (st?.tool_probe_offsets || {});
+      // Extract probe_z_offset from probe_results per tool
+      _probeCalResults = {};
+      var pr = st?.probe_results || {};
+      for (var k in pr) {
+        if (pr[k] && typeof pr[k].probe_z_offset === 'number') {
+          _probeCalResults[k] = { probe_z_offset: pr[k].probe_z_offset };
+        }
+      }
       return st || null;
     })
     .catch(function(){
       _offsetPresent = false;
       _offsetZCalcDefault = null;
+      _toolProbeOffsets = {};
+      _probeCalResults = {};
       return null;
     });
 }
@@ -521,6 +534,46 @@ function calibrateButton(toolNumbers = [], enabled = false) {
 // --------------------------
 // Probe Calibration Section
 // --------------------------
+function probeCalResultsTable(sortedTools) {
+  var hasAny = sortedTools.some(function(t) {
+    var k = String(t);
+    return _toolProbeOffsets[k] !== undefined || _probeCalResults[k];
+  });
+  if (!hasAny) return '';
+
+  var rows = sortedTools.map(function(t) {
+    var k = String(t);
+    var current = _toolProbeOffsets[k];
+    var currentStr = (typeof current === 'number') ? current.toFixed(3) : '-';
+    var calResult = _probeCalResults[k];
+    var newStr = calResult ? calResult.probe_z_offset.toFixed(3) : '-';
+    var diffStr = '-';
+    if (typeof current === 'number' && calResult) {
+      var diff = calResult.probe_z_offset - current;
+      diffStr = (diff >= 0 ? '+' : '') + diff.toFixed(3);
+    }
+    return '<tr>' +
+      '<td class="px-2 py-1 fw-bold">T' + t + '</td>' +
+      '<td class="px-2 py-1 text-end text-secondary">' + currentStr + '</td>' +
+      '<td class="px-2 py-1 text-end">' + (calResult ? '<span class="text-success">' + newStr + '</span>' : newStr) + '</td>' +
+      '<td class="px-2 py-1 text-end text-info">' + diffStr + '</td>' +
+    '</tr>';
+  }).join('');
+
+  return '<div class="border border-secondary-subtle rounded p-2 bg-dark">' +
+    '<span class="fs-6 fw-bold d-block mb-1">Probe Z-Offsets</span>' +
+    '<table class="table table-sm table-borderless mb-0" style="font-size:0.85rem;">' +
+      '<thead><tr>' +
+        '<th class="px-2 py-1 text-secondary">Tool</th>' +
+        '<th class="px-2 py-1 text-end text-secondary">Current</th>' +
+        '<th class="px-2 py-1 text-end text-secondary">New</th>' +
+        '<th class="px-2 py-1 text-end text-secondary">Diff</th>' +
+      '</tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+    '</table>' +
+  '</div>';
+}
+
 function probeCalibrationSection(toolNumbers, enabled) {
   var sortedTools = toolNumbers.slice().sort(function(a, b) { return a - b; });
   var config = getProbeCalConfig(sortedTools);
@@ -587,9 +640,10 @@ function probeCalibrationSection(toolNumbers, enabled) {
       '</div>' +
       toolRows +
     '</div>' +
-    '<button class="btn ' + btnClass + ' w-100" id="probe-cal-btn" ' + disabledAttr + '>' +
+    '<button class="btn ' + btnClass + ' w-100 mb-2" id="probe-cal-btn" ' + disabledAttr + '>' +
       'CALIBRATE PROBE OFFSETS' +
     '</button>' +
+    probeCalResultsTable(sortedTools) +
   '</div>';
 }
 
@@ -908,7 +962,12 @@ function getTools() {
             if (!_offsetPresent) {
               probeStatus = '<span class="text-warning">offset module not found</span>';
             } else {
-              probeStatus = '<span class="text-secondary">Configured</span>';
+              var calTools = Object.keys(_probeCalResults);
+              if (calTools.length > 0) {
+                probeStatus = '<span class="text-success">Last: ' + calTools.map(function(k){ return 'T'+k; }).join(', ') + '</span>';
+              } else {
+                probeStatus = '<span class="text-secondary">Configured</span>';
+              }
             }
 
             // ── Assemble accordion ──
